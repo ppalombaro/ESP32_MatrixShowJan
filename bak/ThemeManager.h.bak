@@ -1,0 +1,154 @@
+/* ThemeManager.h
+   Handles scene management, theme switching, and brightness control.
+   VERSION: V15.2.3-2026-01-04T14:35:00Z - SceneData integration for SPIFFS scenes
+   
+   V15.2.3-2026-01-04T14:35:00Z - Added SceneData for JSON scene loading
+   V15.0.1-2026-01-03T12:00:00Z - Removed all music references
+   V15.0.1-2026-01-03T12:00:00Z - Added configurable countdown target dates
+   V15.0-2025-01-02T19:15:00Z - Added Halloween, Thanksgiving, New Year, OSU themes
+*/
+
+#ifndef THEME_MANAGER_H
+#define THEME_MANAGER_H
+
+#include <Arduino.h>
+#include "Config.h"       
+#include "MatrixDisplay.h"
+#include "Scenes.h"
+#include "SceneData.h"    // V15.2.3-2026-01-04T14:35:00Z - For SPIFFS scene loading
+#include "Animations.h"   
+#include "TestScenes.h"
+#include "HolidayAnimations.h"
+
+// V15.0.1-2026-01-03T12:00:00Z - Countdown target date configuration
+struct CountdownDate {
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;    // V15.0.1-2026-01-03T12:00:00Z - Time component
+    uint8_t minute;
+};
+
+class ThemeManager {
+public:
+    ThemeManager();
+    ~ThemeManager(); 
+
+    void begin(MatrixDisplay* display);
+    void update();
+    void handleSerial();
+
+    void setTheme(uint8_t newTheme);
+    uint8_t getCurrentTheme();
+
+    void setSpecificScene(int sceneIndex); 
+    void setSpecificAnimation(int animIndex);
+    void setSpecificTest(int testIndex);
+    void stopAllAnimations();
+
+    void brightnessUp();
+    void brightnessDown();
+    void setBrightness(uint8_t brightness);
+
+    // V15.0.1-2026-01-03T12:00:00Z - Countdown date management
+    void setChristmasCountdownDate(uint16_t year, uint8_t month, uint8_t day, uint8_t hour = 0, uint8_t minute = 0);
+    void setNewYearCountdownDate(uint16_t year, uint8_t month, uint8_t day, uint8_t hour = 0, uint8_t minute = 0);
+    CountdownDate getChristmasCountdownDate();
+    CountdownDate getNewYearCountdownDate();
+    void resetCountdownDates();  // V15.0.1-2026-01-03T12:00:00Z - Reset to defaults
+
+    uint8_t currentScene = 0; 
+    uint8_t currentAnimation = 0;
+    uint8_t currentTest = 0;
+
+    void setRandomScenesMask(uint8_t mask);
+    void setRandomAnimationsMask(uint32_t mask);
+    void setRandomTestsMask(uint8_t mask);
+    uint8_t getRandomScenesMask();
+    uint32_t getRandomAnimationsMask();
+    uint8_t getRandomTestsMask();
+
+private:
+    MatrixDisplay* disp;
+    
+    // V15.2.3-2026-01-04T14:35:00Z - SPIFFS scene renderer
+    SceneData* sceneData;
+    
+    // Christmas content pointers
+    Scenes* staticScenes;
+    TestScenes* testScenes;
+    ChaseAnimation* chaseAnimation;
+    SnowfallEffect* snowfallEffect;
+    ScrollAnimation* scrollAnimation; 
+    MerryChristmasCount* countdownAnimation; 
+    SpinningSnowflake* spinningSnowflake;    
+    SparklingStar* sparklingStar;            
+    ConcentricRectangles* concentricRectangles;
+    ConcentricCircles* concentricCircles;
+    ConcentricTriangles* concentricTriangles;
+    MorphingGeometry* morphingGeometry;
+
+    // V15.0.1-2026-01-03T12:00:00Z - Holiday animation pointers
+    FlyingBatsAnimation* flyingBats;
+    PirateShipAnimation* pirateShip;
+    BleedingWindowsAnimation* bleedingWindows;
+    LightningFlashAnimation* lightningFlash;
+    HalloweenScrollText* halloweenScroll;
+    SpookyTrackingEyesAnimation* spookyEyes;  // V15.0.3.1 - 2025-01-03
+    ThanksgivingScrollText* thanksgivingScroll;
+    FallingLeavesAnimation* fallingLeaves;
+    NewYearCountdown* newYearCountdown;
+    NewYearScrollText* newYearScroll;
+    FireworksAnimation* fireworks;
+    ColorSpinningStarAnimation* colorSpinningStar;
+    OSUScrollText* osuScroll;
+    OHIOLetterAnimation* ohioLetters;
+    OSUColorWaveAnimation* osuColorWave;
+
+    uint8_t currentTheme = THEME_OFF; 
+    unsigned long lastSceneChangeTime = 0; 
+    
+    uint8_t randomScenesMask = 0;
+    uint32_t randomAnimationsMask = 0;
+    uint8_t randomTestsMask = 0;
+    uint8_t randomContentType = 0;
+
+    // V15.0.1-2026-01-03T12:00:00Z - Countdown target dates storage
+    // V15.0.2-2026-01-03T13:30:00Z - Renamed to avoid conflict with newYearCountdown pointer
+    CountdownDate christmasCountdownDate;
+    CountdownDate newYearCountdownDate;
+    
+    void findNextRandomScene();
+    void findNextRandomAnimation();
+    void findNextRandomTest();
+    void loadRandomShowConfig();
+    void updateRandomMagic();
+    unsigned long getCurrentInterval();
+    
+    void drawStaticChristmasScene(int matrix, uint8_t index);
+    void drawAnimation(int matrix, uint8_t index);
+    void drawTestScene(int matrix, uint8_t index);
+    
+    // V15.0-2025-01-02T19:15:00Z - Holiday drawing functions
+    void drawHalloweenScene(int matrix, uint8_t index);
+    void drawThanksgivingScene(int matrix, uint8_t index);
+    void drawNewYearScene(int matrix, uint8_t index);
+    void drawOSUScene(int matrix, uint8_t index);
+
+    void updateCurrentAnimation();
+    void updateTestPattern();
+    
+    // V15.0-2025-01-02T19:15:00Z - Holiday update functions
+    void updateHalloweenAnimation();
+    void updateThanksgivingAnimation();
+    void updateNewYearAnimation();
+    void updateOSUAnimation();
+    
+    // V15.0.1-2026-01-03T12:00:00Z - Countdown date helpers
+    void loadCountdownDates();
+    void saveCountdownDates();
+    void initializeDefaultDates();
+    time_t countdownToEpoch(const CountdownDate& cd);
+};
+
+#endif

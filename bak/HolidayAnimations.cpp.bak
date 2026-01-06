@@ -1,0 +1,1376 @@
+/* HolidayAnimations.cpp
+   Implementation of animated effects for all holidays
+   VERSION: V15.0-2025-01-02T18:30:00Z - Multi-holiday animation support
+   
+   V15.0-2025-01-02T18:30:00Z - Initial implementation of all holiday animations
+*/
+
+#include "HolidayAnimations.h"
+#include "SceneData.h"  // V15.3.2 - Needed for AnimationLoader
+#include <Arduino.h>
+#include <pgmspace.h>  // V15.0.2-2026-01-03T18:00:00Z - Required for PROGMEM and pgm_read_byte
+#include <time.h>
+
+// External NTP client for accurate time
+extern NTPClient timeClient;
+
+// 5x7 Font for scrolling text (from Animations.cpp)
+// V15.0.2-2026-01-03T17:00:00Z - Font in PROGMEM
+extern const uint8_t FONT_5X7[][5] PROGMEM;
+
+// 3x5 Font for countdown digits
+const uint8_t DIGIT_3X5[][5] = {
+  {0b111, 0b101, 0b101, 0b101, 0b111}, // 0
+  {0b010, 0b110, 0b010, 0b010, 0b111}, // 1
+  {0b111, 0b001, 0b111, 0b100, 0b111}, // 2
+  {0b111, 0b001, 0b111, 0b001, 0b111}, // 3
+  {0b101, 0b101, 0b111, 0b001, 0b001}, // 4
+  {0b111, 0b100, 0b111, 0b001, 0b111}, // 5
+  {0b111, 0b100, 0b111, 0b101, 0b111}, // 6
+  {0b111, 0b001, 0b001, 0b001, 0b001}, // 7
+  {0b111, 0b101, 0b111, 0b101, 0b111}, // 8
+  {0b111, 0b101, 0b111, 0b001, 0b111}  // 9
+};
+
+// V15.3.2-2026-01-04T18:00:00Z - AnimationLoader implementation
+AnimationLoader::AnimationLoader(MatrixDisplay* display) 
+    : disp(display), frameCount(0), currentFrame(0), playing(false), loop(true) {
+    sceneData = new SceneData(display);
+}
+
+bool AnimationLoader::loadTimeline(const char* theme, const char* animName) {
+    // Build path: /animations/theme/animName/animation_timeline.json
+    basePath = String("/animations/") + theme + "/" + animName + "/";
+    String timelinePath = basePath + "animation_timeline.json";
+    
+    File file = SPIFFS.open(timelinePath, "r");
+    if (!file) {
+        Serial.printf("Timeline not found: %s\n", timelinePath.c_str());
+        return false;
+    }
+    
+    StaticJsonDocument<4096> doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+    
+    if (error) {
+        Serial.printf("Timeline parse error: %s\n", error.c_str());
+        return false;
+    }
+    
+    // Parse frames
+    JsonArray framesArray = doc["frames"];
+    frameCount = min((int)framesArray.size(), 50);
+    
+    for (int i = 0; i < frameCount; i++) {
+        JsonObject frame = framesArray[i];
+        frames[i].sceneId = frame["scene"].as<String>();
+        frames[i].durationMs = frame["durationMs"] | 100;
+    }
+    
+    loop = doc["loop"] | true;
+    currentFrame = 0;
+    playing = true;
+    lastFrameTime = millis();
+    
+    Serial.printf("Loaded animation: %s (%d frames)\n", animName, frameCount);
+    return true;
+}
+
+void AnimationLoader::begin() {
+    currentFrame = 0;
+    playing = true;
+    lastFrameTime = millis();
+}
+
+void AnimationLoader::update() {
+    if (!playing || frameCount == 0) return;
+    
+    unsigned long now = millis();
+    if (now - lastFrameTime >= frames[currentFrame].durationMs) {
+        currentFrame++;
+        
+        if (currentFrame >= frameCount) {
+            if (loop) {
+                currentFrame = 0;
+            } else {
+                playing = false;
+                return;
+            }
+        }
+        
+        lastFrameTime = now;
+    }
+    
+    // Render current frame
+    String framePath = basePath + frames[currentFrame].sceneId + ".json";
+    
+    // Use SceneData to render the frame on both matrices
+    sceneData->renderSceneFromFile(framePath.c_str(), 0);
+    sceneData->renderSceneFromFile(framePath.c_str(), 1);
+}
+
+bool AnimationLoader::isPlaying() {
+    return playing;
+}
+
+// ============== HALLOWEEN ANIMATIONS ==============
+
+// V15.0-2025-01-02T18:30:00Z - Flying Bats Animation
+FlyingBatsAnimation::FlyingBatsAnimation(MatrixDisplay* display) 
+    : disp(display), lastUpdate(0) {}
+
+void FlyingBatsAnimation::begin() {
+    lastUpdate = millis();
+    // Initialize bats at random positions
+    for (int i = 0; i < MAX_BATS; i++) {
+        bats[i].y = random(5, ROWS - 5);
+        bats[i].speed = random(5, 15) / 10.0f;
+        bats[i].direction = (random(2) == 0) ? 1 : -1;
+        
+        if (bats[i].direction == 1) {
+            bats[i].x = -5;  // Start off left edge
+        } else {
+            bats[i].x = COLS * 2 + 5;  // Start off right edge
+        }
+    }
+}
+
+void FlyingBatsAnimation::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 50) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - Update and draw each bat
+    for (int i = 0; i < MAX_BATS; i++) {
+        // Move bat
+        bats[i].x += bats[i].speed * bats[i].direction;
+        
+        // Reset if off screen
+        if (bats[i].direction == 1 && bats[i].x > COLS * 2 + 5) {
+            bats[i].x = -5;
+            bats[i].y = random(5, ROWS - 5);
+        } else if (bats[i].direction == -1 && bats[i].x < -5) {
+            bats[i].x = COLS * 2 + 5;
+            bats[i].y = random(5, ROWS - 5);
+        }
+        
+        // Draw bat (simple shape)
+        int globalX = (int)bats[i].x;
+        int y = bats[i].y;
+        
+        // Determine matrix and local x
+        int matrix = (globalX >= COLS) ? 1 : 0;
+        int localX = (globalX >= COLS) ? globalX - COLS : globalX;
+        
+        if (localX >= 0 && localX < COLS && y >= 0 && y < ROWS) {
+            // Bat body
+            disp->setPixel(matrix, localX, y, CRGB::Black);
+            // Wings (purple)
+            if (localX > 0) disp->setPixel(matrix, localX - 1, y, HALLOWEEN_COLOR_2);
+            if (localX < COLS - 1) disp->setPixel(matrix, localX + 1, y, HALLOWEEN_COLOR_2);
+            if (y > 0) {
+                if (localX > 0) disp->setPixel(matrix, localX - 1, y - 1, HALLOWEEN_COLOR_2);
+                if (localX < COLS - 1) disp->setPixel(matrix, localX + 1, y - 1, HALLOWEEN_COLOR_2);
+            }
+        }
+    }
+    
+    disp->show();
+}
+
+// V15.0-2025-01-02T18:30:00Z - Pirate Ship Animation
+PirateShipAnimation::PirateShipAnimation(MatrixDisplay* display)
+    : disp(display), shipX(-15), shipY(ROWS / 2), lastUpdate(0) {}
+
+void PirateShipAnimation::begin() {
+    shipX = -15;
+    shipY = ROWS / 2;
+    lastUpdate = millis();
+}
+
+void PirateShipAnimation::drawShip(int globalX, int y) {
+    // V15.0-2025-01-02T18:30:00Z - Simple pirate ship shape
+    // Ship hull (brown)
+    for (int dx = 0; dx < 12; dx++) {
+        for (int dy = 0; dy < 5; dy++) {
+            int gx = globalX + dx;
+            int gy = y + dy;
+            
+            int matrix = (gx >= COLS) ? 1 : 0;
+            int localX = (gx >= COLS) ? gx - COLS : gx;
+            
+            if (localX >= 0 && localX < COLS && gy >= 0 && gy < ROWS) {
+                disp->setPixel(matrix, localX, gy, CRGB(139, 69, 19));
+            }
+        }
+    }
+    
+    // Mast (brown)
+    for (int dy = -8; dy < 0; dy++) {
+        int gx = globalX + 6;
+        int gy = y + dy;
+        
+        int matrix = (gx >= COLS) ? 1 : 0;
+        int localX = (gx >= COLS) ? gx - COLS : gx;
+        
+        if (localX >= 0 && localX < COLS && gy >= 0 && gy < ROWS) {
+            disp->setPixel(matrix, localX, gy, CRGB(139, 69, 19));
+        }
+    }
+    
+    // Jolly Roger flag (black with white skull)
+    for (int dx = 7; dx < 11; dx++) {
+        for (int dy = -8; dy < -5; dy++) {
+            int gx = globalX + dx;
+            int gy = y + dy;
+            
+            int matrix = (gx >= COLS) ? 1 : 0;
+            int localX = (gx >= COLS) ? gx - COLS : gx;
+            
+            if (localX >= 0 && localX < COLS && gy >= 0 && gy < ROWS) {
+                disp->setPixel(matrix, localX, gy, CRGB::Black);
+            }
+        }
+    }
+    
+    // White skull on flag
+    int gx = globalX + 9;
+    int gy = y - 6;
+    int matrix = (gx >= COLS) ? 1 : 0;
+    int localX = (gx >= COLS) ? gx - COLS : gx;
+    if (localX >= 0 && localX < COLS && gy >= 0 && gy < ROWS) {
+        disp->setPixel(matrix, localX, gy, CRGB::White);
+    }
+}
+
+void PirateShipAnimation::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 80) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - Move ship across both matrices
+    shipX += 0.5f;
+    if (shipX > COLS * 2 + 15) {
+        shipX = -15;
+    }
+    
+    drawShip((int)shipX, shipY);
+    disp->show();
+}
+
+// V15.0-2025-01-02T18:30:00Z - Bleeding Windows Animation
+BleedingWindowsAnimation::BleedingWindowsAnimation(MatrixDisplay* display)
+    : disp(display), lastUpdate(0) {}
+
+void BleedingWindowsAnimation::begin() {
+    // V15.0-2025-01-02T18:30:00Z - Create windows on both matrices
+    for (int i = 0; i < MAX_WINDOWS; i++) {
+        windows[i].matrix = i / 3;  // 3 windows per matrix
+        windows[i].x = 5 + ((i % 3) * 5);
+        windows[i].y = 3;
+        windows[i].bloodLevel = 0;
+    }
+    lastUpdate = millis();
+}
+
+void BleedingWindowsAnimation::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 100) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - Draw windows with dripping blood
+    for (int i = 0; i < MAX_WINDOWS; i++) {
+        int m = windows[i].matrix;
+        int x = windows[i].x;
+        int y = windows[i].y;
+        
+        // Draw window (yellow)
+        for (int wx = 0; wx < 3; wx++) {
+            for (int wy = 0; wy < 4; wy++) {
+                disp->setPixel(m, x + wx, y + wy, CRGB::Yellow);
+            }
+        }
+        
+        // Draw blood drips (red)
+        windows[i].bloodLevel++;
+        if (windows[i].bloodLevel > 15) {
+            windows[i].bloodLevel = 0;
+        }
+        
+        for (int drip = 0; drip < windows[i].bloodLevel && (y + 4 + drip) < ROWS; drip++) {
+            disp->setPixel(m, x + 1, y + 4 + drip, CRGB::Red);
+        }
+    }
+    
+    disp->show();
+}
+
+// V15.0-2025-01-02T18:30:00Z - Lightning Flash Animation
+LightningFlashAnimation::LightningFlashAnimation(MatrixDisplay* display)
+    : disp(display), lastFlash(0), flashDuration(0), isFlashing(false), 
+      flashBrightness(0), lastUpdate(0) {}
+
+void LightningFlashAnimation::begin() {
+    lastFlash = millis();
+    isFlashing = false;
+    lastUpdate = millis();
+}
+
+void LightningFlashAnimation::update() {
+    unsigned long now = millis();
+    
+    // V15.0-2025-01-02T18:30:00Z - Random lightning strikes
+    if (!isFlashing && (now - lastFlash > random(2000, 5000))) {
+        isFlashing = true;
+        flashDuration = now;
+        flashBrightness = 255;
+        lastFlash = now;
+    }
+    
+    if (isFlashing) {
+        disp->clear();
+        
+        // Draw jagged lightning bolt
+        int startX = random(5, 15);
+        int currentX = startX;
+        
+        for (int y = 0; y < ROWS; y += 2) {
+            currentX += random(-2, 3);
+            currentX = constrain(currentX, 0, COLS - 1);
+            
+            // Draw on both matrices
+            disp->setPixel(0, currentX, y, CRGB::White);
+            disp->setPixel(1, currentX, y, CRGB::White);
+            if (currentX > 0) {
+                disp->setPixel(0, currentX - 1, y, CRGB::White);
+                disp->setPixel(1, currentX - 1, y, CRGB::White);
+            }
+        }
+        
+        disp->show();
+        
+        // Flash fades quickly
+        if (now - flashDuration > 150) {
+            isFlashing = false;
+        }
+    } else {
+        // Dark purple background
+        if (now - lastUpdate > 50) {
+            lastUpdate = now;
+            disp->clear();
+            
+            // Occasional dim lightning in background
+            if (random(100) < 5) {
+                int x = random(COLS);
+                int y = random(ROWS);
+                disp->setPixel(0, x, y, CRGB(30, 0, 50));
+                disp->setPixel(1, x, y, CRGB(30, 0, 50));
+            }
+            
+            disp->show();
+        }
+    }
+}
+
+// V15.0-2025-01-02T18:30:00Z - Halloween Scroll Text
+HalloweenScrollText::HalloweenScrollText(MatrixDisplay* display)
+    : disp(display), scrollPos(0), lastUpdate(0) {
+    strcpy(message, "HAPPY HALLOWEEN");
+}
+
+void HalloweenScrollText::begin() {
+    scrollPos = COLS * 2;
+    lastUpdate = millis();
+}
+
+void HalloweenScrollText::setMessage(const char* msg) {
+    strncpy(message, msg, sizeof(message) - 1);
+    message[sizeof(message) - 1] = '\0';
+}
+
+void HalloweenScrollText::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 33) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - Scroll orange text (same logic as Christmas scroll)
+    int charSpacing = 6;
+    int totalWidth = strlen(message) * charSpacing;
+    
+    for (size_t i = 0; i < strlen(message); i++) {
+        char c = message[i];
+        int charPos = scrollPos + (i * charSpacing);
+        
+        if (charPos >= -charSpacing && charPos < COLS * 2) {
+            int fontIndex = -1;
+            if (c >= 32 && c <= 90) {
+                fontIndex = c - 32;
+            }
+            
+            if (fontIndex >= 0) {
+                for (int col = 0; col < 5; col++) {
+                    int globalX = charPos + col;
+                    int matrix = (globalX >= COLS) ? 1 : 0;
+                    int x = (globalX >= COLS) ? globalX - COLS : globalX;
+                    
+                    if (globalX >= 0 && globalX < COLS * 2 && x >= 0 && x < COLS) {
+                        uint8_t columnData = pgm_read_byte(&FONT_5X7[fontIndex][col]);  // V15.0.2-2026-01-03T17:00:00Z
+                        
+                        for (int row = 0; row < 7; row++) {
+                            if (columnData & (1 << row)) {
+                                int y = 9 + row;
+                                if (y < ROWS) {
+                                    disp->setPixel(matrix, x, y, HALLOWEEN_COLOR_1);  // Orange
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    scrollPos--;
+    if (scrollPos < -totalWidth) {
+        scrollPos = COLS * 2;
+    }
+    
+    disp->show();
+}
+
+// ============== THANKSGIVING ANIMATIONS ==============
+
+// V15.0-2025-01-02T18:30:00Z - Thanksgiving Scroll Text
+ThanksgivingScrollText::ThanksgivingScrollText(MatrixDisplay* display)
+    : disp(display), scrollPos(0), lastUpdate(0) {}
+
+void ThanksgivingScrollText::begin() {
+    scrollPos = COLS * 2;
+    lastUpdate = millis();
+}
+
+void ThanksgivingScrollText::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 33) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - "HAPPY THANKSGIVING" in orange/gold
+    const char* message = "HAPPY THANKSGIVING";
+    int charSpacing = 6;
+    int totalWidth = strlen(message) * charSpacing;
+    
+    for (size_t i = 0; i < strlen(message); i++) {
+        char c = message[i];
+        int charPos = scrollPos + (i * charSpacing);
+        
+        if (charPos >= -charSpacing && charPos < COLS * 2) {
+            int fontIndex = -1;
+            if (c >= 32 && c <= 90) {
+                fontIndex = c - 32;
+            }
+            
+            if (fontIndex >= 0) {
+                for (int col = 0; col < 5; col++) {
+                    int globalX = charPos + col;
+                    int matrix = (globalX >= COLS) ? 1 : 0;
+                    int x = (globalX >= COLS) ? globalX - COLS : globalX;
+                    
+                    if (globalX >= 0 && globalX < COLS * 2 && x >= 0 && x < COLS) {
+                        uint8_t columnData = pgm_read_byte(&FONT_5X7[fontIndex][col]);  // V15.0.2-2026-01-03T17:00:00Z
+                        
+                        for (int row = 0; row < 7; row++) {
+                            if (columnData & (1 << row)) {
+                                int y = 9 + row;
+                                if (y < ROWS) {
+                                    disp->setPixel(matrix, x, y, THANKSGIVING_COLOR_1);  // Orange
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    scrollPos--;
+    if (scrollPos < -totalWidth) {
+        scrollPos = COLS * 2;
+    }
+    
+    disp->show();
+}
+
+// V15.0-2025-01-02T18:30:00Z - Falling Leaves Animation
+FallingLeavesAnimation::FallingLeavesAnimation(MatrixDisplay* display)
+    : disp(display), lastUpdate(0) {}
+
+void FallingLeavesAnimation::begin() {
+    lastUpdate = millis();
+    
+    // V15.0-2025-01-02T18:30:00Z - Initialize leaves
+    CRGB leafColors[] = {
+        THANKSGIVING_COLOR_1,  // Orange
+        THANKSGIVING_COLOR_2,  // Gold
+        THANKSGIVING_COLOR_3   // Brown
+    };
+    
+    for (int i = 0; i < MAX_LEAVES; i++) {
+        leaves[i].x = random(COLS * 2);
+        leaves[i].y = random(ROWS);
+        leaves[i].speed = random(3, 8) / 10.0f;
+        leaves[i].color = leafColors[random(3)];
+    }
+}
+
+void FallingLeavesAnimation::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 70) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - Update and draw leaves
+    for (int i = 0; i < MAX_LEAVES; i++) {
+        leaves[i].y -= leaves[i].speed;
+        
+        if (leaves[i].y < 0) {
+            leaves[i].y = ROWS - 1;
+            leaves[i].x = random(COLS * 2);
+        }
+        
+        int globalX = (int)leaves[i].x;
+        int matrix = (globalX >= COLS) ? 1 : 0;
+        int localX = (globalX >= COLS) ? globalX - COLS : globalX;
+        int y = (int)leaves[i].y;
+        
+        if (localX >= 0 && localX < COLS && y >= 0 && y < ROWS) {
+            disp->setPixel(matrix, localX, y, leaves[i].color);
+        }
+    }
+    
+    disp->show();
+}
+
+// ============== NEW YEAR ANIMATIONS ==============
+
+// V15.0-2025-01-02T18:30:00Z - New Year Countdown
+NewYearCountdown::NewYearCountdown(MatrixDisplay* display)
+    : disp(display), lastUpdate(0), isNewYear(false) {}
+
+void NewYearCountdown::begin() {
+    lastUpdate = millis();
+    isNewYear = false;
+}
+
+void NewYearCountdown::drawDigit(int matrix, int x_start, int y_start, int digit, CRGB color) {
+    if (digit < 0 || digit > 9) return;
+    
+    for (int y = 0; y < 5; y++) {
+        uint8_t row_pattern = DIGIT_3X5[digit][y];
+        for (int x = 0; x < 3; x++) {
+            if (row_pattern & (0b100 >> x)) {
+                disp->setPixel(matrix, x_start + x, y_start + y, color);
+            }
+        }
+    }
+}
+
+void NewYearCountdown::drawCountdown(long days, int hours, int minutes, int seconds) {
+    const int BOX_WIDTH = 9;
+    const int BOX_HEIGHT = 10;
+    const int GAP = 1;
+    const int DIGIT_W = 3;
+    const int Y_START = 8;
+    const int X_LEFT = GAP;
+    const int X_RIGHT = COLS / 2 + GAP;
+    
+    // V15.0-2025-01-02T18:30:00Z - Draw countdown boxes (gold/silver colors)
+    auto drawBox = [&](int matrix, int x, int y, char label, long value) {
+        // Border (gold)
+        for (int bx = x; bx < x + BOX_WIDTH; bx++) {
+            disp->setPixel(matrix, bx, y, NEWYEAR_COLOR_1);
+            disp->setPixel(matrix, bx, y + BOX_HEIGHT - 1, NEWYEAR_COLOR_1);
+        }
+        for (int by = y; by < y + BOX_HEIGHT; by++) {
+            disp->setPixel(matrix, x, by, NEWYEAR_COLOR_1);
+            disp->setPixel(matrix, x + BOX_WIDTH - 1, by, NEWYEAR_COLOR_1);
+        }
+        
+        // Digits (white)
+        int digits_y = 10;
+        int digit1_x = x + 1;
+        int digit2_x = x + 1 + DIGIT_W + 1;
+        
+        long value_clamped = constrain(value, 0, 99);
+        int value1 = (value_clamped / 10) % 10;
+        int value2 = value_clamped % 10;
+        
+        drawDigit(matrix, digit1_x, digits_y, value1, NEWYEAR_COLOR_3);  // White
+        drawDigit(matrix, digit2_x, digits_y, value2, NEWYEAR_COLOR_3);
+    };
+    
+    drawBox(0, X_LEFT, Y_START, 'M', minutes);
+    drawBox(0, X_RIGHT, Y_START, 'S', seconds);
+    drawBox(1, X_LEFT, Y_START, 'D', days);
+    drawBox(1, X_RIGHT, Y_START, 'H', hours);
+}
+
+void NewYearCountdown::update() {
+    unsigned long now = millis();
+    
+    // V15.0-2025-01-02T18:30:00Z - Get current time
+    timeClient.update();
+    time_t currentTime = timeClient.getEpochTime();
+    
+    if (currentTime < 100000) {
+        currentTime = (millis() / 1000);
+    }
+    
+    // Target: Jan 1, 2027 05:00:00 UTC (midnight EST)
+    const time_t targetTimeUTC = 1735714800;  // V15.0-2025-01-02T18:30:00Z - Jan 1, 2027
+    
+    long diff = targetTimeUTC - currentTime;
+    if (diff < 0) diff = 0;
+    
+    long days = diff / 86400;
+    long hours = (diff % 86400) / 3600;
+    long minutes = (diff % 3600) / 60;
+    long seconds = diff % 60;
+    
+    // Check if it's New Year (within 1 minute of midnight)
+    if (diff < 60) {
+        isNewYear = true;
+    }
+    
+    // V15.0-2025-01-02T18:30:00Z - Flash on New Year
+    if (isNewYear) {
+        static unsigned long lastFlash = 0;
+        static bool flashState = false;
+        
+        if (now - lastFlash >= 500) {
+            flashState = !flashState;
+            lastFlash = now;
+            
+            disp->clear();
+            if (flashState) {
+                drawCountdown(0, 0, 0, 0);
+            }
+            disp->show();
+        }
+        return;
+    }
+    
+    if (now - lastUpdate < 1000) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    drawCountdown(days, hours, minutes, seconds);
+    disp->show();
+}
+
+// V15.0-2025-01-02T18:30:00Z - New Year Scroll Text
+NewYearScrollText::NewYearScrollText(MatrixDisplay* display)
+    : disp(display), scrollPos(0), lastUpdate(0) {}
+
+void NewYearScrollText::begin() {
+    scrollPos = COLS * 2;
+    lastUpdate = millis();
+}
+
+void NewYearScrollText::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 33) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - "HAPPY NEW YEAR" in gold
+    const char* message = "HAPPY NEW YEAR";
+    int charSpacing = 6;
+    int totalWidth = strlen(message) * charSpacing;
+    
+    for (size_t i = 0; i < strlen(message); i++) {
+        char c = message[i];
+        int charPos = scrollPos + (i * charSpacing);
+        
+        if (charPos >= -charSpacing && charPos < COLS * 2) {
+            int fontIndex = -1;
+            if (c >= 32 && c <= 90) {
+                fontIndex = c - 32;
+            }
+            
+            if (fontIndex >= 0) {
+                for (int col = 0; col < 5; col++) {
+                    int globalX = charPos + col;
+                    int matrix = (globalX >= COLS) ? 1 : 0;
+                    int x = (globalX >= COLS) ? globalX - COLS : globalX;
+                    
+                    if (globalX >= 0 && globalX < COLS * 2 && x >= 0 && x < COLS) {
+                        uint8_t columnData = pgm_read_byte(&FONT_5X7[fontIndex][col]);  // V15.0.2-2026-01-03T17:00:00Z
+                        
+                        for (int row = 0; row < 7; row++) {
+                            if (columnData & (1 << row)) {
+                                int y = 9 + row;
+                                if (y < ROWS) {
+                                    disp->setPixel(matrix, x, y, NEWYEAR_COLOR_1);  // Gold
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    scrollPos--;
+    if (scrollPos < -totalWidth) {
+        scrollPos = COLS * 2;
+    }
+    
+    disp->show();
+}
+
+// V15.0-2025-01-02T18:30:00Z - Fireworks Animation
+FireworksAnimation::FireworksAnimation(MatrixDisplay* display)
+    : disp(display), lastUpdate(0) {}
+
+void FireworksAnimation::begin() {
+    lastUpdate = millis();
+    
+    // V15.0-2025-01-02T18:30:00Z - Initialize fireworks as inactive
+    for (int i = 0; i < MAX_FIREWORKS; i++) {
+        fireworks[i].active = false;
+    }
+}
+
+void FireworksAnimation::launchFirework() {
+    // Find inactive firework slot
+    for (int i = 0; i < MAX_FIREWORKS; i++) {
+        if (!fireworks[i].active) {
+            fireworks[i].x = random(5, COLS - 5);
+            fireworks[i].y = random(5, ROWS - 5);
+            fireworks[i].radius = 0;
+            fireworks[i].color = CHSV(random(256), 255, 255);
+            fireworks[i].active = true;
+            fireworks[i].startTime = millis();
+            break;
+        }
+    }
+}
+
+void FireworksAnimation::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 50) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - Launch new fireworks randomly
+    if (random(100) < 10) {
+        launchFirework();
+    }
+    
+    // Update and draw active fireworks
+    for (int i = 0; i < MAX_FIREWORKS; i++) {
+        if (fireworks[i].active) {
+            unsigned long elapsed = now - fireworks[i].startTime;
+            
+            if (elapsed > 1000) {
+                fireworks[i].active = false;
+                continue;
+            }
+            
+            // Expand radius
+            fireworks[i].radius = elapsed / 50;
+            
+            // Draw burst on both matrices
+            for (int angle = 0; angle < 360; angle += 30) {
+                float rad = angle * DEG_TO_RAD;
+                int x = fireworks[i].x + (int)(cos(rad) * fireworks[i].radius);
+                int y = fireworks[i].y + (int)(sin(rad) * fireworks[i].radius);
+                
+                if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+                    disp->setPixel(0, x, y, fireworks[i].color);
+                    disp->setPixel(1, x, y, fireworks[i].color);
+                }
+            }
+        }
+    }
+    
+    disp->show();
+}
+
+// V15.0-2025-01-02T18:30:00Z - Color Spinning Star Animation
+ColorSpinningStarAnimation::ColorSpinningStarAnimation(MatrixDisplay* display)
+    : disp(display), rotation(0), hue(0), lastUpdate(0) {}
+
+void ColorSpinningStarAnimation::begin() {
+    rotation = 0;
+    hue = 0;
+    lastUpdate = millis();
+}
+
+void ColorSpinningStarAnimation::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 50) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - Rotate and change color
+    rotation += 0.1f;
+    if (rotation >= 6.28f) rotation = 0;
+    
+    hue += 2;
+    
+    int cx = COLS / 2;
+    int cy = ROWS / 2;
+    CRGB starColor = CHSV(hue, 255, 255);
+    
+    // Draw on both matrices
+    for (int matrix = 0; matrix < 2; matrix++) {
+        // Center
+        disp->setPixel(matrix, cx, cy, starColor);
+        
+        // 8 arms
+        for (int i = 0; i < 8; i++) {
+            float angle = rotation + (i * 0.785f);
+            for (int r = 1; r <= 8; r++) {
+                int x = cx + (int)(r * cos(angle));
+                int y = cy + (int)(r * sin(angle));
+                if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+                    disp->setPixel(matrix, x, y, starColor);
+                }
+            }
+        }
+    }
+    
+    disp->show();
+}
+
+// ============== OHIO STATE ANIMATIONS ==============
+
+// V15.0-2025-01-02T18:30:00Z - OSU Scroll Text
+OSUScrollText::OSUScrollText(MatrixDisplay* display)
+    : disp(display), scrollPos(0), lastUpdate(0) {}
+
+void OSUScrollText::begin() {
+    scrollPos = COLS * 2;
+    lastUpdate = millis();
+}
+
+void OSUScrollText::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 33) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - "GO BUCKS!!!" in scarlet red
+    const char* message = "GO BUCKS!!!";
+    int charSpacing = 6;
+    int totalWidth = strlen(message) * charSpacing;
+    
+    for (size_t i = 0; i < strlen(message); i++) {
+        char c = message[i];
+        int charPos = scrollPos + (i * charSpacing);
+        
+        if (charPos >= -charSpacing && charPos < COLS * 2) {
+            int fontIndex = -1;
+            if (c >= 32 && c <= 90) {
+                fontIndex = c - 32;
+            }
+            
+            if (fontIndex >= 0) {
+                for (int col = 0; col < 5; col++) {
+                    int globalX = charPos + col;
+                    int matrix = (globalX >= COLS) ? 1 : 0;
+                    int x = (globalX >= COLS) ? globalX - COLS : globalX;
+                    
+                    if (globalX >= 0 && globalX < COLS * 2 && x >= 0 && x < COLS) {
+                        uint8_t columnData = pgm_read_byte(&FONT_5X7[fontIndex][col]);  // V15.0.2-2026-01-03T17:00:00Z
+                        
+                        for (int row = 0; row < 7; row++) {
+                            if (columnData & (1 << row)) {
+                                int y = 9 + row;
+                                if (y < ROWS) {
+                                    disp->setPixel(matrix, x, y, OSU_COLOR_1);  // Scarlet
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    scrollPos--;
+    if (scrollPos < -totalWidth) {
+        scrollPos = COLS * 2;
+    }
+    
+    disp->show();
+}
+
+// V15.0-2025-01-02T18:30:00Z - O-H-I-O Letter Animation
+OHIOLetterAnimation::OHIOLetterAnimation(MatrixDisplay* display)
+    : disp(display), currentLetter(0), lastLetterTime(0), showLetter(false) {}
+
+void OHIOLetterAnimation::begin() {
+    currentLetter = 0;
+    lastLetterTime = millis();
+    showLetter = false;
+}
+
+void OHIOLetterAnimation::drawLetter(char letter, int matrix) {
+    int cx = COLS / 2;
+    int cy = ROWS / 2;
+    
+    // V15.0-2025-01-02T18:30:00Z - Draw large letter (simplified block letters)
+    switch(letter) {
+        case 'O':
+            // Oval O
+            for (int y = cy - 8; y <= cy + 8; y++) {
+                for (int x = cx - 6; x <= cx + 6; x++) {
+                    if (abs(y - cy) == 8 || abs(x - cx) == 6) {
+                        if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+                            disp->setPixel(matrix, x, y, OSU_COLOR_1);  // Scarlet
+                        }
+                    }
+                }
+            }
+            break;
+            
+        case 'H':
+            // H shape
+            for (int y = cy - 8; y <= cy + 8; y++) {
+                disp->setPixel(matrix, cx - 4, y, OSU_COLOR_1);
+                disp->setPixel(matrix, cx + 4, y, OSU_COLOR_1);
+            }
+            for (int x = cx - 4; x <= cx + 4; x++) {
+                disp->setPixel(matrix, x, cy, OSU_COLOR_1);
+            }
+            break;
+            
+        case 'I':
+            // I shape
+            for (int y = cy - 8; y <= cy + 8; y++) {
+                disp->setPixel(matrix, cx, y, OSU_COLOR_1);
+            }
+            for (int x = cx - 3; x <= cx + 3; x++) {
+                disp->setPixel(matrix, x, cy - 8, OSU_COLOR_1);
+                disp->setPixel(matrix, x, cy + 8, OSU_COLOR_1);
+            }
+            break;
+    }
+}
+
+void OHIOLetterAnimation::update() {
+    unsigned long now = millis();
+    
+    // V15.0-2025-01-02T18:30:00Z - Show letter for 500ms, then pause 500ms
+    if (!showLetter && (now - lastLetterTime > 500)) {
+        showLetter = true;
+        lastLetterTime = now;
+        disp->clear();
+        
+        // Show current letter
+        switch(currentLetter) {
+            case 0: drawLetter('O', 0); break;  // Left matrix
+            case 1: drawLetter('H', 0); break;  // Left matrix
+            case 2: drawLetter('I', 1); break;  // Right matrix
+            case 3: drawLetter('O', 1); break;  // Right matrix
+        }
+        
+        disp->show();
+    } else if (showLetter && (now - lastLetterTime > 500)) {
+        showLetter = false;
+        lastLetterTime = now;
+        currentLetter = (currentLetter + 1) % 4;
+        disp->clear();
+        disp->show();
+    }
+}
+
+// V15.0-2025-01-02T18:30:00Z - OSU Color Wave Animation
+OSUColorWaveAnimation::OSUColorWaveAnimation(MatrixDisplay* display)
+    : disp(display), wavePosition(0), lastUpdate(0) {}
+
+void OSUColorWaveAnimation::begin() {
+    wavePosition = 0;
+    lastUpdate = millis();
+}
+
+void OSUColorWaveAnimation::update() {
+    unsigned long now = millis();
+    if (now - lastUpdate < 50) return;
+    lastUpdate = now;
+    
+    disp->clear();
+    
+    // V15.0-2025-01-02T18:30:00Z - Wave of scarlet/gray/white
+    CRGB colors[] = {OSU_COLOR_1, OSU_COLOR_2, OSU_COLOR_3};
+    
+    for (int y = 0; y < ROWS; y++) {
+        int colorIndex = ((y + wavePosition) / 4) % 3;
+        CRGB color = colors[colorIndex];
+        
+        for (int x = 0; x < COLS; x++) {
+            disp->setPixel(0, x, y, color);
+            disp->setPixel(1, x, y, color);
+        }
+    }
+    
+    wavePosition++;
+    if (wavePosition >= 12) {
+        wavePosition = 0;
+    }
+    
+    disp->show();
+}
+/* HolidayAnimations.cpp ADDITION
+   ADD THIS ENTIRE SECTION AT THE END OF THE FILE
+   V15.0.3.1 - 2025-01-03
+*/
+
+// ============================================================
+// V15.0.3.1 - 2025-01-03 - SPOOKY TRACKING EYEBALLS
+// Complete implementation with all enhancements
+// ============================================================
+
+SpookyTrackingEyesAnimation::SpookyTrackingEyesAnimation(MatrixDisplay* display) 
+    : disp(display), 
+      lastChange(0), 
+      lastBlink(0),
+      nextBlinkTime(3000),
+      frameIndex(0), 
+      isBlinking(false),
+      blinkState(0),
+      veinPulseBrightness(200),
+      lastVeinPulse(0) {
+    
+    // V15.0.3.1 - Initialize timeline with dilation flags
+    timeline[0]  = {0, 1000, true};   // center - dilated (staring)
+    timeline[1]  = {3, 600, false};   // left
+    timeline[2]  = {0, 800, false};   // center
+    timeline[3]  = {4, 600, false};   // right
+    timeline[4]  = {0, 500, false};   // center
+    timeline[5]  = {1, 700, false};   // up
+    timeline[6]  = {0, 500, true};    // center - dilated
+    timeline[7]  = {2, 900, false};   // down
+    timeline[8]  = {5, 400, false};   // up-left
+    timeline[9]  = {8, 800, false};   // down-right
+    timeline[10] = {0, 1200, true};   // center - dilated (long stare)
+    timeline[11] = {3, 300, false};   // left (quick)
+    timeline[12] = {4, 300, false};   // right (quick)
+    timeline[13] = {0, 1500, true};   // center - dilated (final stare)
+}
+
+void SpookyTrackingEyesAnimation::begin() {
+    frameIndex = 0;
+    lastChange = millis();
+    lastBlink = millis();
+    lastVeinPulse = millis();
+    isBlinking = false;
+    nextBlinkTime = millis() + random(2000, 5000);  // First blink in 2-5 seconds
+    veinPulseBrightness = 200;
+    
+    disp->clear();
+    
+    // Start with eyes looking at viewer, dilated
+    drawDirection(0, 0, true, veinPulseBrightness);
+    drawDirection(1, 0, true, veinPulseBrightness);
+    disp->show();
+}
+
+void SpookyTrackingEyesAnimation::update() {
+    unsigned long currentTime = millis();
+    
+    // V15.0.3.1 - Update pulsing blood vessels
+    updateVeinPulse();
+    
+    // V15.0.3.1 - Check for blink
+    if (currentTime >= nextBlinkTime && !isBlinking) {
+        isBlinking = true;
+        blinkState = 0;
+        lastBlink = currentTime;
+    }
+    
+    // V15.0.3.1 - Process blink sequence
+    if (isBlinking) {
+        processBlink();
+        return;  // Don't change direction while blinking
+    }
+    
+    // Get current frame
+    Frame currentFrame = timeline[frameIndex];
+    
+    // V15.0.3.1 - Add randomness to duration (Â±30%)
+    unsigned long frameDuration = getRandomDuration(currentFrame.duration);
+    
+    // Check if time to change direction
+    if (currentTime - lastChange >= frameDuration) {
+        
+        // V15.0.3.1 - 10% chance of random direction
+        int direction = currentFrame.direction;
+        bool dilated = currentFrame.dilated;
+        
+        if (random(100) < 10) {
+            direction = random(0, 9);  // Any of 9 directions
+            dilated = (direction == 0);  // Only dilate when looking at viewer
+        }
+        
+        // Draw eyes on both matrices
+        disp->clear();
+        drawDirection(0, direction, dilated, veinPulseBrightness);
+        drawDirection(1, direction, dilated, veinPulseBrightness);
+        disp->show();
+        
+        // Move to next frame
+        frameIndex++;
+        if (frameIndex >= FRAME_COUNT) {
+            frameIndex = 0;  // Loop back to start
+        }
+        
+        lastChange = currentTime;
+    }
+}
+
+// V15.0.3.1 - Process blink animation
+void SpookyTrackingEyesAnimation::processBlink() {
+    unsigned long currentTime = millis();
+    unsigned long blinkDuration = 0;
+    
+    switch(blinkState) {
+        case 0:  // Closing
+            blinkDuration = 50;
+            if (currentTime - lastBlink >= blinkDuration) {
+                disp->clear();
+                drawEyelid(0, 1);  // Half closed
+                drawEyelid(1, 1);
+                disp->show();
+                blinkState = 1;
+                lastBlink = currentTime;
+            }
+            break;
+            
+        case 1:  // Closed
+            blinkDuration = 100;
+            if (currentTime - lastBlink >= blinkDuration) {
+                disp->clear();
+                drawEyelid(0, 2);  // Fully closed
+                drawEyelid(1, 2);
+                disp->show();
+                blinkState = 2;
+                lastBlink = currentTime;
+            }
+            break;
+            
+        case 2:  // Opening
+            blinkDuration = 50;
+            if (currentTime - lastBlink >= blinkDuration) {
+                disp->clear();
+                drawEyelid(0, 1);  // Half open
+                drawEyelid(1, 1);
+                disp->show();
+                blinkState = 3;
+                lastBlink = currentTime;
+            }
+            break;
+            
+        case 3:  // Fully open - return to normal
+            blinkDuration = 30;
+            if (currentTime - lastBlink >= blinkDuration) {
+                isBlinking = false;
+                blinkState = 0;
+                // Schedule next blink
+                nextBlinkTime = currentTime + random(3000, 8000);
+                // Redraw current eye position
+                Frame currentFrame = timeline[frameIndex];
+                disp->clear();
+                drawDirection(0, currentFrame.direction, currentFrame.dilated, veinPulseBrightness);
+                drawDirection(1, currentFrame.direction, currentFrame.dilated, veinPulseBrightness);
+                disp->show();
+            }
+            break;
+    }
+}
+
+// V15.0.3.1 - Update pulsing blood vessels
+void SpookyTrackingEyesAnimation::updateVeinPulse() {
+    unsigned long currentTime = millis();
+    
+    if (currentTime - lastVeinPulse >= 30) {  // Update ~33 times per second
+        // Pulse between 150-250 (darker to brighter red)
+        veinPulseBrightness = 200 + (sin((currentTime / 1000.0) * 2.0) * 50);
+        lastVeinPulse = currentTime;
+    }
+}
+
+// V15.0.3.1 - Add random variation to timing
+unsigned long SpookyTrackingEyesAnimation::getRandomDuration(unsigned long baseDuration) {
+    int variation = random(-30, 31);  // Â±30%
+    long adjusted = baseDuration + (baseDuration * variation / 100);
+    return constrain(adjusted, 100, 5000);
+}
+
+// V15.0.3.1 - Draw eye looking in specific direction
+void SpookyTrackingEyesAnimation::drawDirection(int matrix, int direction, bool dilated, uint8_t veinPulse) {
+    int pupilOffsetX = 0;
+    int pupilOffsetY = 0;
+    
+    // Map direction to pupil offset
+    switch(direction) {
+        case 0:  pupilOffsetX = 0; pupilOffsetY = 0; break;      // Center
+        case 1:  pupilOffsetX = 0; pupilOffsetY = -4; break;     // Up
+        case 2:  pupilOffsetX = 0; pupilOffsetY = 4; break;      // Down
+        case 3:  pupilOffsetX = -2; pupilOffsetY = 0; break;     // Left
+        case 4:  pupilOffsetX = 2; pupilOffsetY = 0; break;      // Right
+        case 5:  pupilOffsetX = -2; pupilOffsetY = -4; break;    // Up-Left
+        case 6:  pupilOffsetX = 2; pupilOffsetY = -4; break;     // Up-Right
+        case 7:  pupilOffsetX = -2; pupilOffsetY = 4; break;     // Down-Left
+        case 8:  pupilOffsetX = 2; pupilOffsetY = 4; break;      // Down-Right
+    }
+    
+    drawEye(matrix, pupilOffsetX, pupilOffsetY, dilated, veinPulse);
+}
+
+// V15.0.3.1 - Draw complete eyeball with all enhancements
+void SpookyTrackingEyesAnimation::drawEye(int matrix, int pupilOffsetX, int pupilOffsetY, bool dilated, uint8_t veinPulse) {
+    int centerX = COLS / 2;   // 10
+    int centerY = ROWS / 2;   // 12
+    
+    // ========== DRAW EYEBALL (Dark Red Circle) ==========
+    CRGB darkRed(100, 0, 0);
+    
+    for (int dy = -8; dy <= 8; dy++) {
+        for (int dx = -8; dx <= 8; dx++) {
+            if (dx*dx + dy*dy <= 64) {
+                int x = centerX + dx;
+                int y = centerY + dy;
+                if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+                    disp->setPixel(matrix, x, y, darkRed);
+                }
+            }
+        }
+    }
+    
+    // ========== DRAW IRIS (Bright Red Circle) ==========
+    CRGB brightRed(255, 0, 0);
+    
+    for (int dy = -5; dy <= 5; dy++) {
+        for (int dx = -5; dx <= 5; dx++) {
+            if (dx*dx + dy*dy <= 25) {
+                int x = centerX + dx;
+                int y = centerY + dy;
+                if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+                    disp->setPixel(matrix, x, y, brightRed);
+                }
+            }
+        }
+    }
+    
+    // ========== DRAW PUPIL (Black Circle - OFFSET + DILATION) ==========
+    int pupilCenterX = centerX + pupilOffsetX;
+    int pupilCenterY = centerY + pupilOffsetY;
+    int pupilRadius = dilated ? 3 : 2;  // V15.0.3.1 - Larger when dilated
+    int pupilRadiusSq = pupilRadius * pupilRadius;
+    
+    for (int dy = -pupilRadius; dy <= pupilRadius; dy++) {
+        for (int dx = -pupilRadius; dx <= pupilRadius; dx++) {
+            if (dx*dx + dy*dy <= pupilRadiusSq) {
+                int x = pupilCenterX + dx;
+                int y = pupilCenterY + dy;
+                if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+                    disp->setPixel(matrix, x, y, CRGB::Black);
+                }
+            }
+        }
+    }
+    
+    // ========== DRAW BLOOD VESSELS (Pulsing Red Veins) ==========
+    CRGB bloodRed(veinPulse, 0, 0);  // V15.0.3.1 - Pulsing brightness
+    
+    // Vein 1: Upper left
+    disp->setPixel(matrix, centerX - 3, centerY - 6, bloodRed);
+    disp->setPixel(matrix, centerX - 4, centerY - 6, bloodRed);
+    disp->setPixel(matrix, centerX - 4, centerY - 5, bloodRed);
+    disp->setPixel(matrix, centerX - 5, centerY - 4, bloodRed);
+    
+    // Vein 2: Upper right
+    disp->setPixel(matrix, centerX + 3, centerY - 6, bloodRed);
+    disp->setPixel(matrix, centerX + 4, centerY - 6, bloodRed);
+    disp->setPixel(matrix, centerX + 4, centerY - 5, bloodRed);
+    disp->setPixel(matrix, centerX + 5, centerY - 4, bloodRed);
+    
+    // Vein 3: Left side
+    disp->setPixel(matrix, centerX - 7, centerY - 1, bloodRed);
+    disp->setPixel(matrix, centerX - 6, centerY - 1, bloodRed);
+    disp->setPixel(matrix, centerX - 7, centerY, bloodRed);
+    disp->setPixel(matrix, centerX - 6, centerY, bloodRed);
+    disp->setPixel(matrix, centerX - 7, centerY + 1, bloodRed);
+    disp->setPixel(matrix, centerX - 6, centerY + 1, bloodRed);
+    
+    // Vein 4: Right side
+    disp->setPixel(matrix, centerX + 6, centerY - 1, bloodRed);
+    disp->setPixel(matrix, centerX + 7, centerY - 1, bloodRed);
+    disp->setPixel(matrix, centerX + 6, centerY, bloodRed);
+    disp->setPixel(matrix, centerX + 7, centerY, bloodRed);
+    disp->setPixel(matrix, centerX + 6, centerY + 1, bloodRed);
+    disp->setPixel(matrix, centerX + 7, centerY + 1, bloodRed);
+    
+    // Vein 5: Lower left
+    disp->setPixel(matrix, centerX - 5, centerY + 4, bloodRed);
+    disp->setPixel(matrix, centerX - 4, centerY + 5, bloodRed);
+    disp->setPixel(matrix, centerX - 3, centerY + 6, bloodRed);
+    
+    // Vein 6: Lower right
+    disp->setPixel(matrix, centerX + 3, centerY + 6, bloodRed);
+    disp->setPixel(matrix, centerX + 4, centerY + 5, bloodRed);
+    disp->setPixel(matrix, centerX + 5, centerY + 4, bloodRed);
+}
+
+// V15.0.3.1 - Draw eyelid (for blinking)
+void SpookyTrackingEyesAnimation::drawEyelid(int matrix, int lidLevel) {
+    int centerX = COLS / 2;
+    int centerY = ROWS / 2;
+    CRGB lidColor(139, 69, 19);  // Brown eyelid
+    
+    if (lidLevel == 1) {
+        // Half closed - draw upper and lower lids covering half the eye
+        for (int x = centerX - 8; x <= centerX + 8; x++) {
+            if (x >= 0 && x < COLS) {
+                // Upper lid
+                for (int y = centerY - 8; y <= centerY - 3; y++) {
+                    if (y >= 0 && y < ROWS) {
+                        disp->setPixel(matrix, x, y, lidColor);
+                    }
+                }
+                // Lower lid
+                for (int y = centerY + 3; y <= centerY + 8; y++) {
+                    if (y >= 0 && y < ROWS) {
+                        disp->setPixel(matrix, x, y, lidColor);
+                    }
+                }
+            }
+        }
+    } else if (lidLevel == 2) {
+        // Fully closed - single horizontal line
+        for (int x = centerX - 8; x <= centerX + 8; x++) {
+            if (x >= 0 && x < COLS && centerY >= 0 && centerY < ROWS) {
+                disp->setPixel(matrix, x, centerY, lidColor);
+            }
+        }
+    }
+}

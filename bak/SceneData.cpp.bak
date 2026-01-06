@@ -1,0 +1,122 @@
+/* SceneData.cpp
+   JSON scene renderer implementation - SPIFFS only
+   VERSION: V15.3.0-2026-01-04T16:00:00Z - All hardcoded scenes removed
+   
+   V15.3.0-2026-01-04T16:00:00Z - Removed all hardcoded scene implementations
+   V15.2.3-2026-01-04T15:00:00Z - Added matrix dimension detection and auto-scaling
+   V15.1.1-2026-01-04T11:00:00Z - Created universal scene system
+*/
+
+#include "SceneData.h"
+
+SceneData::SceneData(MatrixDisplay* display) : disp(display) {
+}
+
+bool SceneData::sceneExists(const char* filename) {
+    // V15.3.0-2026-01-04T16:30:00Z - Check scenes/ subdirectories
+    const char* themes[] = {"christmas", "halloween", "thanksgiving", "newyear", "osu"};
+    
+    for (const char* theme : themes) {
+        String path = String("/scenes/") + theme + "/" + filename;
+        if (SPIFFS.exists(path)) {
+            return true;
+        }
+    }
+    
+    // V15.3.0-2026-01-04T16:30:00Z - Fallback to root directory
+    return SPIFFS.exists(String("/") + filename);
+}
+
+bool SceneData::renderSceneFromFile(const char* filename, int matrix) {
+    // V15.3.0-2026-01-04T16:30:00Z - Search scenes/theme/ subdirectories first
+    const char* themes[] = {"christmas", "halloween", "thanksgiving", "newyear", "osu"};
+    
+    String foundPath = "";
+    
+    for (const char* theme : themes) {
+        String path = String("/scenes/") + theme + "/" + filename;
+        if (SPIFFS.exists(path)) {
+            foundPath = path;
+            break;
+        }
+    }
+    
+    // V15.3.0-2026-01-04T16:30:00Z - Fallback to root directory
+    if (foundPath == "") {
+        foundPath = String("/") + filename;
+    }
+    
+    File file = SPIFFS.open(foundPath, "r");
+    if (!file) {
+        Serial.printf("Scene file not found: %s\n", foundPath.c_str());
+        return false;
+    }
+    
+    // V15.3.0-2026-01-04T16:00:00Z - Parse JSON
+    StaticJsonDocument<8192> doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+    
+    if (error) {
+        Serial.printf("Failed to parse scene JSON: %s\n", error.c_str());
+        return false;
+    }
+    
+    // V15.3.0-2026-01-04T16:00:00Z - Clear matrix
+    disp->clearMatrix(matrix);
+    
+    // V15.3.0-2026-01-04T16:00:00Z - Get actual matrix dimensions
+    int matrixRows = disp->getMatrixRows(matrix);
+    int matrixCols = disp->getMatrixCols(matrix);
+    
+    // V15.3.0-2026-01-04T16:00:00Z - Get center point (use JSON or auto-center)
+    int centerX = doc["centerX"] | (matrixCols / 2);
+    int centerY = doc["centerY"] | (matrixRows / 2);
+    
+    // V15.3.0-2026-01-04T16:00:00Z - Check for auto-scaling option
+    bool scaleForLarge = doc["scaleForLargeMatrix"] | false;
+    float scale = 1.0;
+    
+    if (scaleForLarge && matrixCols > 25) {
+        // V15.3.0-2026-01-04T16:00:00Z - Scale up for larger matrices
+        scale = (float)matrixCols / 25.0;
+        Serial.printf("Auto-scaling scene by %.2fx for larger matrix\n", scale);
+    }
+    
+    // V15.3.0-2026-01-04T16:00:00Z - Render pixel array
+    JsonArray pixels = doc["pixels"];
+    return renderPixelArray(pixels, centerX, centerY, matrix, matrixRows, matrixCols, scale);
+}
+
+bool SceneData::renderPixelArray(JsonArray pixels, int centerX, int centerY, int matrix, int matrixRows, int matrixCols, float scale) {
+    // V15.3.0-2026-01-04T16:00:00Z - Render each pixel with matrix-aware bounds and optional scaling
+    for (JsonVariant v : pixels) {
+        JsonObject pixel = v.as<JsonObject>();
+        
+        // V15.3.0-2026-01-04T16:00:00Z - Get relative coordinates
+        int dx = pixel["x"] | 0;
+        int dy = pixel["y"] | 0;
+        
+        // V15.3.0-2026-01-04T16:00:00Z - Apply scaling if requested
+        if (scale != 1.0) {
+            dx = (int)(dx * scale);
+            dy = (int)(dy * scale);
+        }
+        
+        // V15.3.0-2026-01-04T16:00:00Z - Convert to absolute
+        int absX = centerX + dx;
+        int absY = centerY + dy;
+        
+        // V15.3.0-2026-01-04T16:00:00Z - Get color
+        uint8_t r = pixel["r"] | 0;
+        uint8_t g = pixel["g"] | 0;
+        uint8_t b = pixel["b"] | 0;
+        
+        // V15.3.0-2026-01-04T16:00:00Z - Bounds check with actual matrix dimensions
+        if (absX >= 0 && absX < matrixCols && absY >= 0 && absY < matrixRows) {
+            disp->setPixel(matrix, absX, absY, CRGB(r, g, b));
+        }
+    }
+    
+    return true;
+}

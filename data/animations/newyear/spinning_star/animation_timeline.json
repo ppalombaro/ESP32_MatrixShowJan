@@ -1,0 +1,140 @@
+{
+  "animationId": "color_spinning_star",
+  "version": "15.3.1",
+  "created": "2026-01-04",
+  "description": "Eight-armed star spinning with full color spectrum cycle",
+  "theme": "newyear",
+  "loop": true,
+  "features": {
+    "rotation": true,
+    "colorCycle": true,
+    "numArms": 8,
+    "smooth": true
+  },
+  "frames": [
+    {
+      "scene": "frame_00",
+      "durationMs": 50,
+      "note": "Rotation 0/24, hue 0"
+    },
+    {
+      "scene": "frame_01",
+      "durationMs": 50,
+      "note": "Rotation 1/24, hue 10"
+    },
+    {
+      "scene": "frame_02",
+      "durationMs": 50,
+      "note": "Rotation 2/24, hue 20"
+    },
+    {
+      "scene": "frame_03",
+      "durationMs": 50,
+      "note": "Rotation 3/24, hue 30"
+    },
+    {
+      "scene": "frame_04",
+      "durationMs": 50,
+      "note": "Rotation 4/24, hue 40"
+    },
+    {
+      "scene": "frame_05",
+      "durationMs": 50,
+      "note": "Rotation 5/24, hue 50"
+    },
+    {
+      "scene": "frame_06",
+      "durationMs": 50,
+      "note": "Rotation 6/24, hue 60"
+    },
+    {
+      "scene": "frame_07",
+      "durationMs": 50,
+      "note": "Rotation 7/24, hue 70"
+    },
+    {
+      "scene": "frame_08",
+      "durationMs": 50,
+      "note": "Rotation 8/24, hue 80"
+    },
+    {
+      "scene": "frame_09",
+      "durationMs": 50,
+      "note": "Rotation 9/24, hue 90"
+    },
+    {
+      "scene": "frame_10",
+      "durationMs": 50,
+      "note": "Rotation 10/24, hue 100"
+    },
+    {
+      "scene": "frame_11",
+      "durationMs": 50,
+      "note": "Rotation 11/24, hue 110"
+    },
+    {
+      "scene": "frame_12",
+      "durationMs": 50,
+      "note": "Rotation 12/24, hue 120"
+    },
+    {
+      "scene": "frame_13",
+      "durationMs": 50,
+      "note": "Rotation 13/24, hue 130"
+    },
+    {
+      "scene": "frame_14",
+      "durationMs": 50,
+      "note": "Rotation 14/24, hue 140"
+    },
+    {
+      "scene": "frame_15",
+      "durationMs": 50,
+      "note": "Rotation 15/24, hue 150"
+    },
+    {
+      "scene": "frame_16",
+      "durationMs": 50,
+      "note": "Rotation 16/24, hue 160"
+    },
+    {
+      "scene": "frame_17",
+      "durationMs": 50,
+      "note": "Rotation 17/24, hue 170"
+    },
+    {
+      "scene": "frame_18",
+      "durationMs": 50,
+      "note": "Rotation 18/24, hue 180"
+    },
+    {
+      "scene": "frame_19",
+      "durationMs": 50,
+      "note": "Rotation 19/24, hue 190"
+    },
+    {
+      "scene": "frame_20",
+      "durationMs": 50,
+      "note": "Rotation 20/24, hue 200"
+    },
+    {
+      "scene": "frame_21",
+      "durationMs": 50,
+      "note": "Rotation 21/24, hue 210"
+    },
+    {
+      "scene": "frame_22",
+      "durationMs": 50,
+      "note": "Rotation 22/24, hue 220"
+    },
+    {
+      "scene": "frame_23",
+      "durationMs": 50,
+      "note": "Rotation 23/24, hue 230"
+    }
+  ],
+  "metadata": {
+    "frameCount": 24,
+    "createdBy": "V15.3.1 Animation Converter"
+  }
+}

@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>LED Content Studio v15.2.1</title>
+<style>
+body { background: #111; color: #eee; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+.header { background: #1a1a1a; padding: 15px; border-bottom: 2px solid #4a9eff; }
+.header h1 { margin: 0; color: #4a9eff; }
+.header p { margin: 5px 0 0 0; color: #999; }
+.nav { background: #222; display: flex; border-bottom: 1px solid #444; }
+.nav button { background: #333; color: #eee; border: none; padding: 15px 25px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+.nav button:hover { background: #444; }
+.nav button.active { background: #4a9eff; color: #fff; font-weight: bold; }
+.tab-content { display: none; padding: 20px; }
+.tab-content.active { display: block; }
+.section { background: #222; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 3px solid #4a9eff; }
+.section h3 { color: #4a9eff; margin-top: 0; }
+#canvas { display: grid; gap: 1px; background: #333; margin: 10px 0; }
+.cell { width: 16px; height: 16px; background: #000; cursor: pointer; }
+.cell.grid-5 { border-right: 1px solid #666; }
+.cell.grid-5-row { border-bottom: 1px solid #666; }
+textarea, input[type="text"], input[type="number"], select { 
+  background: #333; color: #eee; border: 1px solid #555; padding: 8px; margin: 4px; 
+  font-family: 'Courier New', monospace; border-radius: 3px;
+}
+button { background: #4a9eff; color: #fff; border: none; padding: 10px 20px; cursor: pointer; margin: 4px; border-radius: 3px; font-weight: bold; transition: all 0.3s; }
+button:hover { background: #3a8eef; }
+button.danger { background: #f44; }
+button.danger:hover { background: #d33; }
+.success { color: #0f0; font-weight: bold; }
+.error { color: #f00; font-weight: bold; }
+.warning { color: #f90; font-weight: bold; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+th, td { border: 1px solid #555; padding: 8px; text-align: left; }
+th { background: #333; color: #4a9eff; }
+.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.info-box { background: #2a2a2a; padding: 10px; border-radius: 3px; margin: 10px 0; border-left: 3px solid #4a9eff; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎨 LED Content Studio v15.2.1</h1>
+  <p>Unified tool for creating scenes, animations, and converting C++ code - Now with JSON Import!</p>
+</div>
+
+<div class="nav">
+  <button onclick="showTab('scene-editor')" class="active" id="tab-scene">Scene Editor</button>
+  <button onclick="showTab('animation-builder')" id="tab-animation">Animation Builder</button>
+  <button onclick="showTab('code-converter')" id="tab-converter">Code Converter</button>
+  <button onclick="showTab('library')" id="tab-library">Library Manager</button>
+</div>
+
+<div id="scene-editor" class="tab-content active">
+  <div class="section">
+    <h3>🔧 Matrix Layout Configuration</h3>
+    <p style="color:#999">Define your physical LED matrix arrangement</p>
+    <select id="layoutPreset" onchange="loadLayoutPreset(this.value)" style="width:400px;margin-bottom:10px">
+      <option value="">-- Select Matrix Layout Preset --</option>
+      <option value="current" selected>Current Setup (2× 20x25 matrices)</option>
+      <option value="megamatrix">Future 3-Matrix (with 50x40 megamatrix)</option>
+      <option value="custom">Custom Layout...</option>
+    </select><br>
+    <textarea id="layout" rows="6" cols="90">
+{
+  "matrices":[
+    {"id":1,"cols":20,"rows":25,"offsetX":0,"offsetY":0},
+    {"id":2,"cols":20,"rows":25,"offsetX":20,"offsetY":0}
+  ]
+}
+    </textarea><br>
+    <button onclick="buildCanvas()">🔨 Build Canvas from Layout</button>
+    <span id="layoutStatus"></span>
+    <div class="info-box" style="margin-top:10px;color:#f90">
+      ⚠️ <strong>Matrix ID Mapping:</strong> Tool shows "Matrix 1,2,3" but firmware uses matrix=0,1,2<br>
+      When using scenes in firmware code, remember to subtract 1 from the matrix ID!
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>🎨 Scene Management</h3>
+    <div class="grid-2col">
+      <div>
+        <select id="sceneSel" onchange="switchScene(this.value)" style="width:100%"></select><br>
+        <button onclick="newScene()">➕ New Scene</button>
+        <button onclick="deleteScene()" class="danger">🗑️ Delete Scene</button>
+        <button onclick="clearScene()" class="danger">🧹 Clear Pixels</button>
+      </div>
+      <div>
+        <label>Scene Name: <input id="sceneName" type="text" value="my_scene" style="width:200px"></label><br>
+        <label>Center X: <input id="cx" type="number" value="12" min="0" max="50"></label><br>
+        <label>Center Y: <input id="cy" type="number" value="10" min="0" max="20"></label><br>
+        <label>Draw Color: <input type="color" id="color" value="#00ff00"></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>🖼️ Canvas (Click to draw/erase pixels)</h3>
+    <div id="canvasInfo" class="info-box">Canvas not initialized</div>
+    <div id="canvas"></div>
+  </div>
+
+  <div class="section">
+    <h3>💾 Import / Export</h3>
+    <button onclick="importJSONPrompt()">📥 Import Scene JSON File</button>
+    <button onclick="importFromTextarea()">📋 Load JSON from Textarea</button>
+    <button onclick="exportScene()">📤 Export Current Scene</button>
+    <button onclick="exportAllScenes()">📦 Export All Scenes</button>
+    <input type="file" id="jsonInput" accept=".json,application/json" onchange="importJSON(this)" style="display:none"><br>
+    <textarea id="sceneOutput" rows="12" cols="90" placeholder="Paste JSON here to import OR exported JSON appears here..."></textarea>
+  </div>
+</div>
+
+<div id="animation-builder" class="tab-content">
+  <div class="section">
+    <h3>📚 Available Scenes</h3>
+    <p style="color:#999">Scenes that can be used in animations</p>
+    <div id="availableScenesList" class="info-box">No scenes loaded. Create scenes in Scene Editor first.</div>
+    <button onclick="refreshSceneList()">🔄 Refresh from Scene Editor</button>
+  </div>
+
+  <div class="section">
+    <h3>🎬 Animation Timeline</h3>
+    <p style="color:#999">Define sequence of scenes with durations</p>
+    <div id="frameList"></div>
+    <button onclick="addAnimFrame()">➕ Add Frame</button>
+    <button onclick="clearFrames()">🧹 Clear All Frames</button>
+  </div>
+
+  <div class="section">
+    <h3>🎛️ Matrix Assignments</h3>
+    <p style="color:#999">Which scene appears on which matrix for each frame</p>
+    <textarea id="matrixAssign" rows="6" cols="90">
+{
+  "1": "default",
+  "2": "default"
+}
+    </textarea>
+  </div>
+
+  <div class="section">
+    <h3>⚙️ Animation Settings</h3>
+    <label>Animation ID: <input id="animId" type="text" value="my_animation" style="width:300px"></label><br>
+    <label><input id="loopAnim" type="checkbox" checked> Loop Animation</label><br>
+    <label>Total Duration: <span id="totalDuration" style="color:#4a9eff;font-weight:bold">0 ms</span></label>
+  </div>
+
+  <div class="section">
+    <h3>📤 Export Animation</h3>
+    <button onclick="previewAnimation()">👁️ Preview Animation</button>
+    <button onclick="exportAnimation()">💾 Export Animation JSON</button><br>
+    <div id="animPreview"></div>
+    <textarea id="animOutput" rows="12" cols="90" placeholder="Animation JSON will appear here..."></textarea>
+  </div>
+</div>
+
+<div id="code-converter" class="tab-content">
+  <div class="section">
+    <h3>📝 C++ Code Input</h3>
+    <p style="color:#999">Paste Arduino/C++ setPixel() code to convert to JSON</p>
+    <textarea id="cppCode" rows="15" cols="90" placeholder="Paste your C++ code here, e.g.:
+disp->setPixel(matrix, 16, 3, CRGB::Yellow);
+disp->setPixel(matrix, 15, 4, CRGB::Yellow);
+disp->setPixel(matrix, 16, 5, CRGB(0, 255, 0));
+..."></textarea>
+  </div>
+
+  <div class="section">
+    <h3>🔧 Conversion Settings</h3>
+    <label>Scene ID: <input id="convertSceneId" type="text" value="converted_scene" style="width:300px"></label><br>
+    <label><input id="autoCenter" type="checkbox" checked> Auto-calculate center point</label><br>
+    <label>Manual Center X: <input id="manualCx" type="number" value="12" min="0" max="50"></label>
+    <label>Manual Center Y: <input id="manualCy" type="number" value="10" min="0" max="20"></label><br>
+    <button onclick="convertCode()">🔄 Convert to JSON</button>
+    <button onclick="importToSceneEditor()">📥 Import to Scene Editor</button>
+  </div>
+
+  <div class="section">
+    <h3>📤 Converted Output</h3>
+    <textarea id="convertOutput" rows="15" cols="90" placeholder="Converted JSON scene will appear here..."></textarea>
+  </div>
+</div>
+
+<div id="library" class="tab-content">
+  <div class="section">
+    <h3>📚 Project Library Manager</h3>
+    <p style="color:#999">Save and load complete projects with multiple scenes and animations</p>
+    <button onclick="exportProject()">💾 Export Complete Project</button>
+    <button onclick="importProjectPrompt()">📥 Import Project File</button>
+    <input type="file" id="projectInput" accept=".json,application/json" onchange="importProject(this)" style="display:none"><br>
+    <textarea id="projectOutput" rows="20" cols="90" placeholder="Complete project JSON (all scenes + animations)..."></textarea>
+  </div>
+
+  <div class="section">
+    <h3>📊 Current Project Stats</h3>
+    <div id="projectStats" class="info-box">
+      Total Scenes: <span id="statScenes">0</span><br>
+      Total Pixels: <span id="statPixels">0</span><br>
+      Total Animations: <span id="statAnims">0</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// V15.2.1-2026-01-04T17:00:00Z - Added JSON import functionality
+
+let scenes = {};
+let currentScene = null;
+let layout = null;
+let canvasData = [];
+let animFrames = [];
+
+function showTab(tabName) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabName).classList.add('active');
+  document.getElementById('tab-' + tabName.split('-')[0]).classList.add('active');
+}
+
+function loadLayoutPreset(preset) {
+  const layouts = {
+    current: `{
+  "matrices":[
+    {"id":1,"cols":20,"rows":25,"offsetX":0,"offsetY":0},
+    {"id":2,"cols":20,"rows":25,"offsetX":20,"offsetY":0}
+  ]
+}`,
+    megamatrix: `{
+  "matrices":[
+    {"id":1,"cols":20,"rows":25,"offsetX":0,"offsetY":0},
+    {"id":2,"cols":20,"rows":25,"offsetX":20,"offsetY":0},
+    {"id":3,"cols":50,"rows":40,"offsetX":40,"offsetY":0}
+  ]
+}`
+  };
+  if (layouts[preset]) document.getElementById('layout').value = layouts[preset];
+}
+
+function buildCanvas() {
+  try {
+    layout = JSON.parse(document.getElementById('layout').value);
+    let maxX = 0, maxY = 0;
+    layout.matrices.forEach(m => {
+      maxX = Math.max(maxX, m.offsetX + m.cols);
+      maxY = Math.max(maxY, m.offsetY + m.rows);
+    });
+    
+    const canvas = document.getElementById('canvas');
+    canvas.style.gridTemplateColumns = `repeat(${maxX}, 16px)`;
+    canvas.innerHTML = '';
+    canvasData = [];
+    
+    for (let y = 0; y < maxY; y++) {
+      for (let x = 0; x < maxX; x++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if ((x + 1) % 5 === 0 && x < maxX - 1) cell.classList.add('grid-5'); // V15.2.1-2026-01-04T17:15:00Z
+        if ((y + 1) % 5 === 0 && y < maxY - 1) cell.classList.add('grid-5-row'); // V15.2.1-2026-01-04T17:15:00Z
+        cell.dataset.x = x;
+        cell.dataset.y = y;
+        cell.onclick = () => togglePixel(x, y);
+        canvas.appendChild(cell);
+        canvasData.push({x, y, r: 0, g: 0, b: 0});
+      }
+    }
+    
+    document.getElementById('canvasInfo').innerHTML = `Canvas: ${maxX}×${maxY} (${layout.matrices.length} matrices)`;
+    document.getElementById('layoutStatus').innerHTML = '<span class="success">✓ Built</span>';
+  } catch(e) {
+    document.getElementById('layoutStatus').innerHTML = '<span class="error">✗ Invalid JSON</span>';
+  }
+}
+
+function togglePixel(x, y) {
+  const color = document.getElementById('color').value;
+  const r = parseInt(color.substr(1,2), 16);
+  const g = parseInt(color.substr(3,2), 16);
+  const b = parseInt(color.substr(5,2), 16);
+  
+  const idx = canvasData.findIndex(p => p.x === x && p.y === y);
+  const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+  
+  if (canvasData[idx].r === 0 && canvasData[idx].g === 0 && canvasData[idx].b === 0) {
+    canvasData[idx] = {x, y, r, g, b};
+    cell.style.background = color;
+  } else {
+    canvasData[idx] = {x, y, r: 0, g: 0, b: 0};
+    cell.style.background = '#000';
+  }
+  
+  if (currentScene) {
+    const cx = parseInt(document.getElementById('cx').value);
+    const cy = parseInt(document.getElementById('cy').value);
+    scenes[currentScene].pixels = canvasData.filter(p => p.r || p.g || p.b).map(p => ({
+      x: p.x - cx, y: p.y - cy, r: p.r, g: p.g, b: p.b
+    }));
+  }
+}
+
+function newScene() {
+  const name = prompt('Scene name:', 'scene_' + Object.keys(scenes).length);
+  if (!name) return;
+  scenes[name] = {name, theme: 'christmas', centerX: 12, centerY: 10, pixels: []};
+  currentScene = name;
+  updateSceneSelector();
+  clearCanvas();
+}
+
+function deleteScene() {
+  if (!currentScene) return;
+  if (!confirm(`Delete ${currentScene}?`)) return;
+  delete scenes[currentScene];
+  currentScene = Object.keys(scenes)[0] || null;
+  updateSceneSelector();
+  loadSceneToCanvas();
+}
+
+function clearScene() {
+  if (!currentScene) return;
+  scenes[currentScene].pixels = [];
+  clearCanvas();
+}
+
+function clearCanvas() {
+  canvasData.forEach(p => { p.r = 0; p.g = 0; p.b = 0; });
+  document.querySelectorAll('.cell').forEach(c => c.style.background = '#000');
+}
+
+function switchScene(name) {
+  currentScene = name;
+  loadSceneToCanvas();
+}
+
+function updateSceneSelector() {
+  const sel = document.getElementById('sceneSel');
+  sel.innerHTML = Object.keys(scenes).map(name => 
+    `<option value="${name}" ${name === currentScene ? 'selected' : ''}>${name}</option>`
+  ).join('');
+}
+
+function loadSceneToCanvas() {
+  if (!currentScene || !scenes[currentScene]) return;
+  clearCanvas();
+  const scene = scenes[currentScene];
+  document.getElementById('sceneName').value = scene.name || currentScene;
+  document.getElementById('cx').value = scene.centerX;
+  document.getElementById('cy').value = scene.centerY;
+  
+  scene.pixels.forEach(p => {
+    const absX = p.x + scene.centerX;
+    const absY = p.y + scene.centerY;
+    const idx = canvasData.findIndex(cp => cp.x === absX && cp.y === absY);
+    if (idx >= 0) {
+      canvasData[idx] = {x: absX, y: absY, r: p.r, g: p.g, b: p.b};
+      const cell = document.querySelector(`.cell[data-x="${absX}"][data-y="${absY}"]`);
+      if (cell) cell.style.background = `rgb(${p.r},${p.g},${p.b})`;
+    }
+  });
+}
+
+// V15.2.1-2026-01-04T17:00:00Z - NEW: JSON Import Functions
+function importJSONPrompt() {
+  document.getElementById('jsonInput').click();
+}
+
+function importJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const json = JSON.parse(e.target.result);
+      loadJSONScene(json);
+      document.getElementById('sceneOutput').value = JSON.stringify(json, null, 2);
+    } catch(err) {
+      alert('Invalid JSON file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function importFromTextarea() {
+  try {
+    const json = JSON.parse(document.getElementById('sceneOutput').value);
+    loadJSONScene(json);
+  } catch(err) {
+    alert('Invalid JSON in textarea: ' + err.message);
+  }
+}
+
+function loadJSONScene(json) {
+  const name = json.name || 'imported_' + Date.now();
+  scenes[name] = {
+    name: json.name || name,
+    theme: json.theme || 'christmas',
+    centerX: json.centerX || 12,
+    centerY: json.centerY || 10,
+    pixels: json.pixels || []
+  };
+  currentScene = name;
+  updateSceneSelector();
+  loadSceneToCanvas();
+  alert(`✓ Imported scene: ${name}\n${json.pixels.length} pixels loaded`);
+}
+
+function exportScene() {
+  if (!currentScene) { alert('No scene selected'); return; }
+  const scene = scenes[currentScene];
+  scene.name = document.getElementById('sceneName').value;
+  scene.centerX = parseInt(document.getElementById('cx').value);
+  scene.centerY = parseInt(document.getElementById('cy').value);
+  
+  const json = JSON.stringify(scene, null, 2);
+  document.getElementById('sceneOutput').value = json;
+  
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${scene.name}.json`;
+  a.click();
+}
+
+function exportAllScenes() {
+  const json = JSON.stringify(Object.values(scenes), null, 2);
+  document.getElementById('sceneOutput').value = json;
+  
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'all_scenes.json';
+  a.click();
+}
+
+function exportLayout() {
+  const json = document.getElementById('layout').value;
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'matrix_layout.json';
+  a.click();
+}
+
+function refreshSceneList() {
+  const list = document.getElementById('availableScenesList');
+  if (Object.keys(scenes).length === 0) {
+    list.innerHTML = 'No scenes loaded. Create scenes in Scene Editor first.';
+    return;
+  }
+  list.innerHTML = '<table><tr><th>Scene</th><th>Pixels</th><th>Center</th></tr>' +
+    Object.values(scenes).map(s => 
+      `<tr><td>${s.name}</td><td>${s.pixels.length}</td><td>(${s.centerX}, ${s.centerY})</td></tr>`
+    ).join('') + '</table>';
+}
+
+function addAnimFrame() {
+  const frameNum = animFrames.length;
+  animFrames.push({scene: '', duration: 1000});
+  updateFrameList();
+}
+
+function clearFrames() {
+  animFrames = [];
+  updateFrameList();
+}
+
+function updateFrameList() {
+  const list = document.getElementById('frameList');
+  if (animFrames.length === 0) {
+    list.innerHTML = '<p style="color:#999">No frames yet. Click "Add Frame" to start.</p>';
+    return;
+  }
+  
+  list.innerHTML = '<table><tr><th>Frame</th><th>Scene</th><th>Duration (ms)</th><th>Action</th></tr>' +
+    animFrames.map((f, i) => 
+      `<tr>
+        <td>${i}</td>
+        <td><select onchange="animFrames[${i}].scene=this.value">
+          <option value="">--select--</option>
+          ${Object.keys(scenes).map(s => `<option value="${s}" ${f.scene===s?'selected':''}>${s}</option>`).join('')}
+        </select></td>
+        <td><input type="number" value="${f.duration}" onchange="animFrames[${i}].duration=parseInt(this.value)"></td>
+        <td><button onclick="animFrames.splice(${i},1);updateFrameList()" class="danger">Remove</button></td>
+      </tr>`
+    ).join('') + '</table>';
+  
+  const total = animFrames.reduce((sum, f) => sum + f.duration, 0);
+  document.getElementById('totalDuration').textContent = total + ' ms';
+}
+
+function previewAnimation() {
+  const preview = document.getElementById('animPreview');
+  preview.innerHTML = '<h4>Animation Preview:</h4><ul>' +
+    animFrames.map((f, i) => `<li>Frame ${i}: ${f.scene} (${f.duration}ms)</li>`).join('') +
+    '</ul>';
+}
+
+function exportAnimation() {
+  const animId = document.getElementById('animId').value;
+  const loop = document.getElementById('loopAnim').checked;
+  const matrixAssign = JSON.parse(document.getElementById('matrixAssign').value);
+  
+  const anim = {
+    id: animId,
+    loop: loop,
+    frames: animFrames.map(f => ({
+      scene: f.scene,
+      duration: f.duration
+    })),
+    matrixAssignments: matrixAssign
+  };
+  
+  const json = JSON.stringify(anim, null, 2);
+  document.getElementById('animOutput').value = json;
+  
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${animId}.json`;
+  a.click();
+}
+
+function convertCode() {
+  const code = document.getElementById('cppCode').value;
+  const sceneId = document.getElementById('convertSceneId').value;
+  const autoCenter = document.getElementById('autoCenter').checked;
+  
+  const pixels = [];
+  const regex = /setPixel\s*\(\s*\w+\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(?:CRGB::(\w+)|CRGB\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)\))/g;
+  
+  const colors = {
+    Red: [255,0,0], Green: [0,255,0], Blue: [0,0,255], Yellow: [255,255,0],
+    Cyan: [0,255,255], Magenta: [255,0,255], White: [255,255,255], Black: [0,0,0],
+    Orange: [255,165,0], Gold: [255,215,0], Purple: [128,0,128]
+  };
+  
+  let match;
+  while ((match = regex.exec(code)) !== null) {
+    const x = parseInt(match[1]);
+    const y = parseInt(match[2]);
+    let r, g, b;
+    
+    if (match[3]) {
+      [r, g, b] = colors[match[3]] || [255,255,255];
+    } else {
+      r = parseInt(match[4]);
+      g = parseInt(match[5]);
+      b = parseInt(match[6]);
+    }
+    
+    pixels.push({x, y, r, g, b});
+  }
+  
+  let cx, cy;
+  if (autoCenter && pixels.length > 0) {
+    const xs = pixels.map(p => p.x);
+    const ys = pixels.map(p => p.y);
+    cx = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
+    cy = Math.round((Math.min(...ys) + Math.max(...ys)) / 2);
+  } else {
+    cx = parseInt(document.getElementById('manualCx').value);
+    cy = parseInt(document.getElementById('manualCy').value);
+  }
+  
+  const relPixels = pixels.map(p => ({
+    x: p.x - cx,
+    y: p.y - cy,
+    r: p.r,
+    g: p.g,
+    b: p.b
+  }));
+  
+  const scene = {
+    name: sceneId,
+    theme: "christmas",
+    centerX: cx,
+    centerY: cy,
+    pixels: relPixels
+  };
+  
+  document.getElementById('convertOutput').value = JSON.stringify(scene, null, 2);
+}
+
+function importToSceneEditor() {
+  try {
+    const json = JSON.parse(document.getElementById('convertOutput').value);
+    loadJSONScene(json);
+    showTab('scene-editor');
+  } catch(e) {
+    alert('Invalid JSON: ' + e.message);
+  }
+}
+
+function exportProject() {
+  const project = {
+    version: "15.2.1",
+    scenes: scenes,
+    layout: layout,
+    timestamp: new Date().toISOString()
+  };
+  
+  const json = JSON.stringify(project, null, 2);
+  document.getElementById('projectOutput').value = json;
+  
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'led_project.json';
+  a.click();
+  
+  updateProjectStats();
+}
+
+function importProjectPrompt() {
+  document.getElementById('projectInput').click();
+}
+
+function importProject(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const project = JSON.parse(e.target.result);
+      scenes = project.scenes || {};
+      layout = project.layout;
+      if (layout) document.getElementById('layout').value = JSON.stringify(layout, null, 2);
+      currentScene = Object.keys(scenes)[0] || null;
+      updateSceneSelector();
+      updateProjectStats();
+      alert(`✓ Project imported\n${Object.keys(scenes).length} scenes loaded`);
+    } catch(err) {
+      alert('Invalid project file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function updateProjectStats() {
+  const totalPixels = Object.values(scenes).reduce((sum, s) => sum + s.pixels.length, 0);
+  document.getElementById('statScenes').textContent = Object.keys(scenes).length;
+  document.getElementById('statPixels').textContent = totalPixels;
+  document.getElementById('statAnims').textContent = animFrames.length;
+}
+
+// Initialize
+buildCanvas();
+newScene();
+</script>
+</body>
+</html>
