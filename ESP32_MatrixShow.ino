@@ -15,10 +15,7 @@ HolidayAnims holidayAnims(&display);
 void setup() {
     Serial.begin(115200);
 
-    if (!display.begin()) {
-        Logger::instance().log("Display init failed!");
-        while (1);
-    }
+    display.begin(); // just call it
 
     content.begin();
     themes.begin(&display, &content);

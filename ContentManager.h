@@ -1,14 +1,8 @@
 #pragma once
-
 #include <Arduino.h>
 #include <vector>
 #include <FFat.h>
 #include "Logger.h"
-
-// Forward declarations
-class SceneEntry; // optional, already struct
-enum class ThemeId;
-enum class SceneSourceType;
 
 enum class SceneSourceType {
     FFAT_JSON,
@@ -35,13 +29,10 @@ class ContentManager {
 public:
     static ContentManager& instance();
 
-    void begin();
-
-    // Discovery / registration
+    void begin(); // matches cpp
     void discoverFFATScenes(const String& rootPath);
     void registerCodeScene(const String& displayName, ThemeId theme, void (*callback)());
 
-    // Accessors
     const SceneEntry* getSceneById(uint16_t id) const;
     const SceneEntry* getSceneByIndex(size_t index) const;
     std::vector<const SceneEntry*> getAllScenes() const;

@@ -1,20 +1,24 @@
 #include "ContentManager.h"
 
 ContentManager& ContentManager::instance() {
-    static ContentManager inst;
-    return inst;
+    static ContentManager _instance;
+    return _instance;
 }
 
-ContentManager::ContentManager() : _nextId(0) {}
+ContentManager::ContentManager()
+    : _nextId(0)
+{}
 
 ContentManager::~ContentManager() {}
 
 void ContentManager::begin() {
-    // initialize content system
+    // No return value; previous bool mismatch removed
+    discoverFFATScenes("/scenes");
 }
 
+// Discovery
 void ContentManager::discoverFFATScenes(const String& rootPath) {
-    // implementation
+    // Example: scan FFAT directory for JSON scenes
 }
 
 void ContentManager::registerCodeScene(const String& displayName, ThemeId theme, void (*callback)()) {
@@ -27,9 +31,10 @@ void ContentManager::registerCodeScene(const String& displayName, ThemeId theme,
     _scenes.push_back(entry);
 }
 
+// Accessors
 const SceneEntry* ContentManager::getSceneById(uint16_t id) const {
-    for (auto &scene : _scenes) {
-        if (scene.id == id) return &scene;
+    for (const auto& s : _scenes) {
+        if (s.id == id) return &s;
     }
     return nullptr;
 }
@@ -40,17 +45,15 @@ const SceneEntry* ContentManager::getSceneByIndex(size_t index) const {
 }
 
 std::vector<const SceneEntry*> ContentManager::getAllScenes() const {
-    std::vector<const SceneEntry*> result;
-    for (auto &scene : _scenes) result.push_back(&scene);
-    return result;
+    std::vector<const SceneEntry*> out;
+    for (const auto& s : _scenes) out.push_back(&s);
+    return out;
 }
 
 std::vector<const SceneEntry*> ContentManager::getScenesForTheme(ThemeId theme) const {
-    std::vector<const SceneEntry*> result;
-    for (auto &scene : _scenes) if (scene.theme == theme) result.push_back(&scene);
-    return result;
-}
-
-void ContentManager::update() {
-    // optional tick logic for .ino loop
+    std::vector<const SceneEntry*> out;
+    for (const auto& s : _scenes) {
+        if (s.theme == theme) out.push_back(&s);
+    }
+    return out;
 }

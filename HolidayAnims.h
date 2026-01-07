@@ -1,10 +1,10 @@
 #pragma once
-
+#include <Arduino.h>
 #include <vector>
 
-// Forward declarations
+ 
+#include "Animations.h"  
 class MatrixDisplay;
-class Animation;
 
 class HolidayAnims {
 public:
@@ -16,7 +16,6 @@ public:
     void registerScenes();
 
 private:
-    MatrixDisplay* _display = nullptr;
+    MatrixDisplay* _display;
     std::vector<Animation*> _animations;
-};
 };
