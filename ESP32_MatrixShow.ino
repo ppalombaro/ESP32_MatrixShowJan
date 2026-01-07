@@ -42,18 +42,18 @@ void setup() {
     esp_task_wdt_init(30, true);
     esp_task_wdt_add(NULL);
     Serial.println("System: Watchdog set to 30s");
-
-    // Initialize components
-    if (!display.begin()) {
-        Serial.println("Display Init Failed!");
-    }
-
-    if (!content.begin()) {
-        Serial.println("Content Manager Init Failed!");
-    }
-
+    
+    display.begin();
+    Serial.println("Display  Init");
+ 
+    content.begin();  
+    Serial.println("Content Init");
+ 
     themes.begin(&display, &content);
+    Serial.println("Theme Init");
+    
     web.begin(&themes, &content);
+    Serial.println("Web  Init");
 
     // Start NTP
     timeClient.begin();
@@ -72,19 +72,7 @@ void loop() {
 
     timeClient.update();       // Update NTP
 
-    web.handleClient();        // Correct WebController handling
-
-    if (isScheduledTime()) {
-        themes.update();           // Run active theme
-    } else {
-        static bool was_on = true;
-        if (was_on) {
-            display.clear();
-            display.show();
-            was_on = false;
-            Serial.println("Schedule: Display entering Sleep Mode");
-        }
-    }
+    web.handle();        // Correct WebController handling
 
     content.update();          // Dynamic content
     holidayAnims.updateAll();  // Update animations
