@@ -1,49 +1,50 @@
 #include "ContentManager.h"
+#include "Logger.h"
+#include "FS.h"
+#include "SPIFFS.h"
+
+ContentManager::ContentManager() {}
 
 void ContentManager::begin() {
-    Logger::instance().log("[ContentManager] Initialization complete.");
+    if (!SPIFFS.begin(true)) {
+        Logger::instance().log("SPIFFS mount failed!");
+    }
 }
 
-void ContentManager::discoverFFATScenes(const String& rootPath) {
-    File dir = FFat.open(rootPath);
-    if (!dir || !dir.isDirectory()) return;
+void ContentManager::update() {
+    // Placeholder for dynamic content refresh if needed
+}
 
-    File file = dir.openNextFile();
+// Populate both static and dynamic animations
+void ContentManager::populateAnimations(HolidayAnims* ha) {
+    if (!ha) return;
+
+    loadStaticAnimations(ha);
+    loadDynamicAnimations(ha);
+
+    ha->beginAll(); // Initialize all animations after registering
+}
+
+// Register coded static animations here
+void ContentManager::loadStaticAnimations(HolidayAnims* ha) {
+    // Example static animations
+    // ha->addAnimation(new SomeStaticAnimation());
+}
+
+// Scan SPIFFS for dynamic JSON animations and register them
+void ContentManager::loadDynamicAnimations(HolidayAnims* ha) {
+    File root = SPIFFS.open("/scenes");
+    if (!root || !root.isDirectory()) return;
+
+    File file = root.openNextFile();
     while (file) {
-        if (!file.isDirectory()) {
-            SceneEntry entry;
-            entry.id = _nextId++;
-            entry.filePath = String(file.name());
-            entry.displayName = file.name();
-            entry.source = SceneSourceType::FFAT_JSON;
-            entry.theme = ThemeId::NONE;
-            _scenes.push_back(entry);
+        String filename = file.name();
+        if (filename.endsWith(".json")) {
+            // Create a dynamic animation object
+            Animation* anim = new Animation();
+            anim->loadFromFile(filename); // make sure your Animation class has this
+            ha->addAnimation(anim);
         }
-        file = dir.openNextFile();
+        file = root.openNextFile();
     }
-}
-
-void ContentManager::registerCodeScene(const String& displayName, ThemeId theme, void (*callback)()) {
-    SceneEntry entry;
-    entry.id = _nextId++;
-    entry.displayName = displayName;
-    entry.source = SceneSourceType::CODE_SCENE;
-    entry.theme = theme;
-    entry.runCallback = callback;
-    _scenes.push_back(entry);
-}
-
-const SceneEntry* ContentManager::getSceneById(uint16_t id) const {
-    for (auto& scene : _scenes) {
-        if (scene.id == id) return &scene;
-    }
-    return nullptr;
-}
-
-std::vector<const SceneEntry*> ContentManager::getScenesForTheme(ThemeId theme) const {
-    std::vector<const SceneEntry*> result;
-    for (auto& scene : _scenes) {
-        if (scene.theme == theme) result.push_back(&scene);
-    }
-    return result;
 }

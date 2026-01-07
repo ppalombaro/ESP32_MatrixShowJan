@@ -1,19 +1,17 @@
 #pragma once
-#include <Arduino.h>
 #include <vector>
+#include <Arduino.h>
 #include "MatrixDisplay.h"
-#include "Animation.h" // Include the full Animation class
+#include "Animations.h"
 
 class HolidayAnims {
 public:
     HolidayAnims(MatrixDisplay* disp);
 
-    void beginAll();       // Initialize all animations
-    void updateAll();      // Update all animations
+    void beginAll();                    // Initialize all animations
+    void updateAll();                   // Update all animations per loop
+    void addAnimation(Animation* anim); // Add a static or dynamic animation
     Animation* getAnimationById(int id);
-
-    // Add animations to the container
-    void addAnimation(Animation* anim) { _animations.push_back(anim); }
 
 private:
     MatrixDisplay* _display;
