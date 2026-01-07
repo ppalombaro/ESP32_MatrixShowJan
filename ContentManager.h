@@ -1,18 +1,31 @@
 #pragma once
 #include <Arduino.h>
+#include <vector>
 #include "HolidayAnims.h"
-#include "Animations.h"
+#include "Animations.h"  // Ensure Animation is known
+
+// Forward declaration of SceneEntry
+struct SceneEntry {
+    int id;
+    String displayName;
+};
 
 class ContentManager {
 public:
-    ContentManager();
+    ContentManager() = default;
 
-    void begin();                         // Initialize file system and content
-    void update();                        // Update content if needed
-    void populateAnimations(HolidayAnims* ha); // Scan dynamic JSON + register all animations
+    // ---------------------------
+    // Singleton accessor for Scheduler
+    // ---------------------------
+    static ContentManager& instance() {
+        static ContentManager _instance;
+        return _instance;
+    }
+
+    // Existing public interface
+    std::vector<SceneEntry> getAllScenes() { return _scenes; }
+    void loadDynamicAnimations(HolidayAnims* holidayAnims);
 
 private:
-    // private helpers
-    void loadDynamicAnimations(HolidayAnims* ha);
-    void loadStaticAnimations(HolidayAnims* ha);
+    std::vector<SceneEntry> _scenes;
 };
