@@ -1,24 +1,22 @@
 #pragma once
-#include <Arduino.h>
-#include <MatrixDisplay.h>  // Keep existing dependency
 
-// ----------------------------
-// Base Animation Class
-// ----------------------------
+#include <Arduino.h>
+#include "MatrixDisplay.h"   // FIX: local project header must use quotes
+
+// Base class for all animations
 class Animation {
 public:
-    Animation(MatrixDisplay* disp) : _display(disp) {}
+    explicit Animation(MatrixDisplay* display)
+        : matrix(display) {}
+
     virtual ~Animation() = default;
 
-    // Existing virtual functions you may already have
-    virtual void begin() {}   // Initialize animation
-    virtual void update() {}  // Update frame
+    // Called once when animation starts
+    virtual void begin() {}
+
+    // Called repeatedly from loop()
+    virtual void update() = 0;
 
 protected:
-    MatrixDisplay* _display;
+    MatrixDisplay* matrix;
 };
-
-// ----------------------------
-// Add any derived animations here if they exist
-// Example from your existing code could remain
-// ----------------------------
