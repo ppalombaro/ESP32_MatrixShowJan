@@ -23,7 +23,7 @@ void WebPages::begin() {
 String WebPages::buildMainPage() {
     String html;
 
-    html += "<!DOCTYPE html><html><head><title>ESP32 Matrix Show</title></head><body>";
+    html += "<!DOCTYPE html><html><head><title>Palombaro LED Show</title></head><body>";
 
     // Preview section
     html += "<h2>Preview Scene</h2>";

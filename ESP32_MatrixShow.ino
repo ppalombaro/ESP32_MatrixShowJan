@@ -22,9 +22,9 @@
 
 // Global objects required by the system 
 MatrixDisplay display;
-ContentManager content;
-ThemeManager themes;
-WebController web;
+ContentManager& content = ContentManager::instance();
+ThemeManager& themes = ThemeManager::instance();
+WebController& web = WebController::instance();
 Preferences preferences;  
 
 // NTP Client Setup

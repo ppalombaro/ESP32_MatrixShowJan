@@ -18,22 +18,19 @@ void ContentManager::begin() {
 }
 
 void ContentManager::discoverFFATScenes(const String& rootPath) {
-    Dir dir = FFat.openDir(rootPath);
-    while (dir.next()) {
-        String path = dir.fileName();
-        if (path.endsWith(".json")) {
-            SceneEntry entry;
-            entry.id = _nextId++;
-            entry.displayName = path.substring(path.lastIndexOf('/')+1);
-            entry.source = SceneSourceType::FFAT_JSON;
-            entry.filePath = path;
-            // infer theme from folder name
-            if (path.indexOf("halloween") >= 0) entry.theme = ThemeId::HALLOWEEN;
-            else if (path.indexOf("newyear") >= 0) entry.theme = ThemeId::NEWYEAR;
-            else entry.theme = ThemeId::NONE;
+        File root = FFat.open(rootPath);
+    if (!root || !root.isDirectory()) {
+        Logger::instance().logf("Invalid FFAT path: %s", rootPath.c_str());
+        return;
+    }
 
-            _scenes.push_back(entry);
+    File file = root.openNextFile();
+    while (file) {
+        if (!file.isDirectory()) {
+            String name = file.name();
+            // process JSON scene file here
         }
+        file = root.openNextFile();
     }
 }
 
