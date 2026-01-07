@@ -2,20 +2,25 @@
 
 #include <Arduino.h>
 
-// Forward declarations
 class MatrixDisplay;
 class ContentManager;
 
 class ThemeManager {
 public:
-    ThemeManager();
+    ThemeManager() {}
 
-    void begin(); // original zero-arg
-    void begin(MatrixDisplay* display, ContentManager* content);
+    // Match ESP32_MatrixShow.ino
+    void begin(MatrixDisplay*, ContentManager*) {}
+    void update() {}
 
-    void update();
+    void setTheme(uint8_t) {}
+    void setBrightness(uint8_t) {}
 
-private:
-    MatrixDisplay* _display = nullptr;
-    ContentManager* _content = nullptr;
+    void setSpecificScene(int) {}
+    void setSpecificAnimation(int) {}
+    void setSpecificTest(int) {}
+
+    void setChristmasCountdownDate(uint16_t, uint8_t, uint8_t, uint8_t, uint8_t) {}
+    void setNewYearCountdownDate(uint16_t, uint8_t, uint8_t, uint8_t, uint8_t) {}
+    void resetCountdownDates() {}
 };
