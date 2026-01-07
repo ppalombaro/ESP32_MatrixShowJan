@@ -1,122 +1,138 @@
-/* SceneData.cpp
-   JSON scene renderer implementation - FFat only
-   VERSION: V15.3.0-2026-01-04T16:00:00Z - All hardcoded scenes removed
-   
-   V15.3.0-2026-01-04T16:00:00Z - Removed all hardcoded scene implementations
-   V15.2.3-2026-01-04T15:00:00Z - Added matrix dimension detection and auto-scaling
-   V15.1.1-2026-01-04T11:00:00Z - Created universal scene system
-*/
-
 #include "SceneData.h"
 
-SceneData::SceneData(MatrixDisplay* display) : disp(display) {
+SceneData::SceneData(const SceneEntry* scene)
+: _scene(scene)
+{
 }
 
-bool SceneData::sceneExists(const char* filename) {
-    // V15.3.0-2026-01-04T16:30:00Z - Check scenes/ subdirectories
-    const char* themes[] = {"christmas", "halloween", "thanksgiving", "newyear", "osu"};
-    
-    for (const char* theme : themes) {
-        String path = String("/scenes/") + theme + "/" + filename;
-        if (FFat.exists(path)) {
-            return true;
+SceneData::~SceneData() {
+    // Free JSON documents
+    for (auto& f : _frames) {
+        if (f.jsonDoc) {
+            delete f.jsonDoc;
+            f.jsonDoc = nullptr;
         }
     }
-    
-    // V15.3.0-2026-01-04T16:30:00Z - Fallback to root directory
-    return FFat.exists(String("/") + filename);
+    _frames.clear();
 }
 
-bool SceneData::renderSceneFromFile(const char* filename, int matrix) {
-    // V15.3.0-2026-01-04T16:30:00Z - Search scenes/theme/ subdirectories first
-    const char* themes[] = {"christmas", "halloween", "thanksgiving", "newyear", "osu"};
-    
-    String foundPath = "";
-    
-    for (const char* theme : themes) {
-        String path = String("/scenes/") + theme + "/" + filename;
-        if (FFat.exists(path)) {
-            foundPath = path;
-            break;
+bool SceneData::load() {
+    if (!_scene) return false;
+
+    _frames.clear();
+
+    if (_scene->source == SceneSourceType::CODE_SCENE) {
+        // Nothing to load for code-based scenes
+        return true;
+    }
+
+    if (_scene->filePath.length() == 0) {
+        Logger::instance().logf("[SceneData] Scene has empty file path: %s\n",
+                                 _scene->displayName.c_str());
+        return false;
+    }
+
+    // Load timeline JSON
+    String timelinePath = _scene->filePath;
+    File timelineFile = FFat.open(timelinePath);
+    if (!timelineFile) {
+        Logger::instance().logf("[SceneData] Timeline file missing: %s\n",
+                                 timelinePath.c_str());
+        return false;
+    }
+
+    DynamicJsonDocument doc(JSON_BUFFER_SIZE);
+    DeserializationError err = deserializeJson(doc, timelineFile);
+    timelineFile.close();
+    if (err) {
+        Logger::instance().logf("[SceneData] JSON parse error (%s): %s\n",
+                                 timelinePath.c_str(),
+                                 err.c_str());
+        return false;
+    }
+
+    // Expecting: frames array
+    if (!doc.containsKey("frames") || !doc["frames"].is<JsonArray>()) {
+        Logger::instance().logf("[SceneData] Missing frames array in %s\n",
+                                 timelinePath.c_str());
+        return false;
+    }
+
+    JsonArray framesArray = doc["frames"].as<JsonArray>();
+    for (JsonObject frameObj : framesArray) {
+        String framePath = frameObj["file"] | "";
+        if (framePath.length() == 0) continue;
+
+        FrameData frame;
+        if (!loadFrame(framePath, frame)) {
+            Logger::instance().logf("[SceneData] Failed to load frame: %s\n",
+                                     framePath.c_str());
+            continue;
         }
+
+        _frames.push_back(frame);
     }
-    
-    // V15.3.0-2026-01-04T16:30:00Z - Fallback to root directory
-    if (foundPath == "") {
-        foundPath = String("/") + filename;
-    }
-    
-    File file = FFat.open(foundPath, "r");
+
+    Logger::instance().logf("[SceneData] Loaded %u frames for %s\n",
+                             (uint32_t)_frames.size(),
+                             _scene->displayName.c_str());
+
+    return _frames.size() > 0;
+}
+
+bool SceneData::loadFrame(const String& path, FrameData& outFrame) {
+    File file = FFat.open(path);
     if (!file) {
-        Serial.printf("Scene file not found: %s\n", foundPath.c_str());
+        outFrame.jsonDoc = nullptr;
         return false;
     }
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Parse JSON
-    StaticJsonDocument<8192> doc;
-    DeserializationError error = deserializeJson(doc, file);
+
+    DynamicJsonDocument* doc = new DynamicJsonDocument(JSON_BUFFER_SIZE);
+    DeserializationError err = deserializeJson(*doc, file);
     file.close();
-    
-    if (error) {
-        Serial.printf("Failed to parse scene JSON: %s\n", error.c_str());
+    if (err) {
+        delete doc;
+        outFrame.jsonDoc = nullptr;
         return false;
     }
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Clear matrix
-    disp->clearMatrix(matrix);
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Get actual matrix dimensions
-    int matrixRows = disp->getMatrixRows(matrix);
-    int matrixCols = disp->getMatrixCols(matrix);
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Get center point (use JSON or auto-center)
-    int centerX = doc["centerX"] | (matrixCols / 2);
-    int centerY = doc["centerY"] | (matrixRows / 2);
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Check for auto-scaling option
-    bool scaleForLarge = doc["scaleForLargeMatrix"] | false;
-    float scale = 1.0;
-    
-    if (scaleForLarge && matrixCols > 25) {
-        // V15.3.0-2026-01-04T16:00:00Z - Scale up for larger matrices
-        scale = (float)matrixCols / 25.0;
-        Serial.printf("Auto-scaling scene by %.2fx for larger matrix\n", scale);
-    }
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Render pixel array
-    JsonArray pixels = doc["pixels"];
-    return renderPixelArray(pixels, centerX, centerY, matrix, matrixRows, matrixCols, scale);
+
+    outFrame.filePath = path;
+    outFrame.jsonDoc  = doc;
+    return true;
 }
 
-bool SceneData::renderPixelArray(JsonArray pixels, int centerX, int centerY, int matrix, int matrixRows, int matrixCols, float scale) {
-    // V15.3.0-2026-01-04T16:00:00Z - Render each pixel with matrix-aware bounds and optional scaling
-    for (JsonVariant v : pixels) {
-        JsonObject pixel = v.as<JsonObject>();
-        
-        // V15.3.0-2026-01-04T16:00:00Z - Get relative coordinates
-        int dx = pixel["x"] | 0;
-        int dy = pixel["y"] | 0;
-        
-        // V15.3.0-2026-01-04T16:00:00Z - Apply scaling if requested
-        if (scale != 1.0) {
-            dx = (int)(dx * scale);
-            dy = (int)(dy * scale);
-        }
-        
-        // V15.3.0-2026-01-04T16:00:00Z - Convert to absolute
-        int absX = centerX + dx;
-        int absY = centerY + dy;
-        
-        // V15.3.0-2026-01-04T16:00:00Z - Get color
-        uint8_t r = pixel["r"] | 0;
-        uint8_t g = pixel["g"] | 0;
-        uint8_t b = pixel["b"] | 0;
-        
-        // V15.3.0-2026-01-04T16:00:00Z - Bounds check with actual matrix dimensions
-        if (absX >= 0 && absX < matrixCols && absY >= 0 && absY < matrixRows) {
-            disp->setPixel(matrix, absX, absY, CRGB(r, g, b));
-        }
+bool SceneData::play() {
+    if (!_scene) return false;
+
+    switch (_scene->source) {
+        case SceneSourceType::CODE_SCENE:
+            if (_scene->runCallback) {
+                _scene->runCallback();
+                return true;
+            }
+            break;
+
+        case SceneSourceType::FFAT_JSON:
+            for (auto& f : _frames) {
+                if (!f.jsonDoc) continue;
+                // call your animation engine here:
+                // e.g., MatrixDisplay::instance().drawFrame(f.jsonDoc);
+            }
+            return true;
     }
-    
-    return true;
+    return false;
+}
+
+const String& SceneData::getName() const {
+    static String empty;
+    return _scene ? _scene->displayName : empty;
+}
+
+size_t SceneData::frameCount() const {
+    return _frames.size();
+}
+
+const FrameData* SceneData::getFrame(size_t index) const {
+    if (index >= _frames.size()) return nullptr;
+    return &_frames[index];
 }

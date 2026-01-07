@@ -1,35 +1,40 @@
-/* SceneData.h
-   JSON scene renderer with FFat support - no hardcoded fallbacks
-   VERSION: V15.3.0-2026-01-04T16:00:00Z - All hardcoded scenes removed
-   
-   V15.3.0-2026-01-04T16:00:00Z - Removed all hardcoded scene fallbacks
-   V15.2.3-2026-01-04T15:00:00Z - Added matrix-aware rendering with auto-scaling
-   V15.1.1-2026-01-04T11:00:00Z - Created universal scene renderer
-*/
-
-#ifndef SCENE_DATA_H
-#define SCENE_DATA_H
-
+#pragma once
 #include <Arduino.h>
-#include <FFat.h>
 #include <ArduinoJson.h>
-#include "MatrixDisplay.h"
+#include <vector>
+#include "ContentManager.h"
+#include "Logger.h"
+#include <FFat.h>
+
+#define SCENEDATA_VERSION "15.4FIX"
+
+struct FrameData {
+    String filePath;       // FFAT JSON frame
+    JsonDocument* jsonDoc; // pointer to loaded JSON (nullptr if not loaded)
+};
 
 class SceneData {
 public:
-    SceneData(MatrixDisplay* display);
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Primary render method (FFat only)
-    bool renderSceneFromFile(const char* filename, int matrix);
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Helper to check if file exists
-    bool sceneExists(const char* filename);
-    
-private:
-    MatrixDisplay* disp;
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Parse and render with matrix dimensions and scaling
-    bool renderPixelArray(JsonArray pixels, int centerX, int centerY, int matrix, int matrixRows, int matrixCols, float scale = 1.0);
-};
+    SceneData(const SceneEntry* scene);
+    ~SceneData();
 
-#endif
+    // Load scene timeline JSON files (frames)
+    bool load();
+
+    // Play the loaded frames using your animation engine
+    bool play();
+
+    // Accessors
+    const String& getName() const;
+    size_t frameCount() const;
+    const FrameData* getFrame(size_t index) const;
+
+private:
+    const SceneEntry* _scene;
+    std::vector<FrameData> _frames;
+
+    bool loadFrame(const String& path, FrameData& outFrame);
+
+    // JSON buffer pool
+    static const size_t JSON_BUFFER_SIZE = 2048; // adjust per frame size
+};

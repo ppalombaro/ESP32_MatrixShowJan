@@ -3,7 +3,46 @@
    VERSION: V15.0.1-2026-01-03T10:05:00Z - Extracted from main controller
 */
 
-#include "Logger.h"
+#includ#include "Logger.h"
+#include <stdarg.h>
+
+static Logger* _instance = nullptr;
+
+Logger& Logger::instance() {
+    if (!_instance) {
+        _instance = new Logger();
+    }
+    return *_instance;
+}
+
+Logger::Logger() {
+}
+
+Logger::~Logger() {
+}
+
+// ------------------------------------------------------------
+// printf-style logging, safe for long strings
+// ------------------------------------------------------------
+void Logger::logf(const char* fmt, ...) {
+    static const size_t BUF_SIZE = 1024; // safe for long paths / JSON names
+    char buf[BUF_SIZE];
+
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, BUF_SIZE, fmt, args);
+    va_end(args);
+
+    Serial.println(buf);
+}
+
+// ------------------------------------------------------------
+// simple string logging
+// ------------------------------------------------------------
+void Logger::log(const String& message) {
+    Serial.println(message);
+}
+e "Logger.h"
 #include "Config.h"
 
 // V15.0.1-2026-01-03T10:05:00Z - Global logger instance

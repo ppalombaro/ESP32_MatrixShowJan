@@ -1,265 +1,119 @@
 /* ESP32_MatrixShow.ino
    Main controller for dual LED matrix multi-holiday display
-   VERSION: V15.1.0-2026-01-04T10:30:00Z - Integrated ContentManager architecture
-   
-   V15.1.0-2026-01-04T10:30:00Z - Added ContentManager for auto-discovery
-   V15.1.0-2026-01-04T10:30:00Z - WebController now uses modular WebPages/WebActions
-   V15.1.0-2026-01-04T10:30:00Z - Schedule config moved to FFat JSON
+   VERSION: V15.4.1-2026-01-06
+   - FIX: Added missing <Preferences.h> include
+   - FIX: Completed isScheduledTime() logic with midnight-wrap support
+   - UserID-Defect2: Accurate Minute-level scheduling
+   - Watchdog sync: Log matches 30s hardware timeout
 */
 
+#include <Arduino.h>
+#include <WiFiUdp.h>
+#include <NTPClient.h>
+#include <Preferences.h>      // Required for permanent storage
+#include "esp_task_wdt.h"      // Required for watchdog timer
+
+// Project Headers
 #include "Config.h"
 #include "MatrixDisplay.h"
-#include "Scenes.h"
-#include "Animations.h"
-#include "TestScenes.h"
 #include "ThemeManager.h"
 #include "WebController.h"
-#include "HolidayAnimations.h"
-#include "Logger.h"
-#include "ContentManager.h"  // V15.1.0-2026-01-04T10:30:00Z - New auto-discovery system
-#include <NTPClient.h>
-#include <WiFiUdp.h>
-#include <Preferences.h>
-#include "esp_task_wdt.h"
+#include "ContentManager.h"
 
-// Global objects
+// Global objects required by the system 
 MatrixDisplay display;
-ThemeManager themes;    
+ContentManager content;
+ThemeManager themes;
 WebController web;
-ContentManager content;  // V15.1.0-2026-01-04T10:30:00Z - Content auto-discovery
-Preferences preferences;
-
-// V15.1.0-2026-01-04T10:30:00Z - Scheduler now uses ContentManager
-// Global run mode still in preferences for compatibility
-uint8_t global_run_mode = RUN_MODE_MANUAL;
-
-bool schedulerForcedOff = false;
-
-// Track state changes
-unsigned long loopCount = 0;
-
-// WiFi reconnection tracking
-unsigned long lastWiFiCheck = 0;
+Preferences preferences;  
 
 // NTP Client Setup
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 60000);  
+// -18000 is the offset in seconds for EST (-5 hours)
+NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000, 60000); 
 
-// Forward declarations
+// Function Prototype
 bool isScheduledTime();
-void loadSchedulerSettings();
-void loadBrightness();
 
-// V15.1.0-2026-01-04T10:30:00Z - Web server task runs on Core 0
-void webServerTask(void* parameter) {
-  while (true) {
-    web.handleClient();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
-}
-
-// ESP32_MatrixShow.ino - Version 15.2.1 - 2026-01-04 13:45
-
-// Replace the WDT initialization code in setup() around line 67:
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  delay(1000); // Give serial time to stabilize
   
-  // v15.2.1 - Use direct API call instead of deprecated config struct
-  esp_task_wdt_init(30, true);  // 30 second timeout, panic on timeout
-  esp_task_wdt_add(NULL);  // Add current task to WDT
-  
-  Serial.println("Watchdog timer enabled (10s timeout)");
-  
-  Serial.println("\n========================================");
-  Serial.println("ESP32 Matrix Display - V15.1.0");  // V15.1.0-2026-01-04T10:30:00Z
-  Serial.println("Features: Auto-Discovery, Modular Web, FFat Config");  // V15.1.0-2026-01-04T10:30:00Z
-  Serial.println("Starting setup...");
-  Serial.println("========================================\n");
+  Serial.println("\n--- Starting ESP32 Matrix Show V15.4.1 ---");
 
-  // V15.1.0-2026-01-04T10:30:00Z - Initialize content discovery FIRST
-  Serial.println("Step 1: Initializing content manager...");
+  // Watchdog Sync - 30s hardware timeout 
+  esp_task_wdt_init(30, true); 
+  esp_task_wdt_add(NULL); // Add main loop to watchdog
+  Serial.println("System: Watchdog set to 30s");
+
+  // Initialize System Components
+x  if (!display.begin()) {
+    Serial.println("Display Init Failed!");
+  }
+  
   if (!content.begin()) {
-    Serial.println("WARNING: Content manager initialization failed - using hardcoded content");
-  } else {
-    Serial.printf("Content discovered: %d scenes, %d animations, %d tests\n",
-                  content.getTotalScenes(), 
-                  content.getTotalAnimations(),
-                  content.getTotalTests());
+    Serial.println("Content Manager (FFat) Init Failed!");
   }
 
-  // Load Scheduler Settings
-  Serial.println("Step 2: Loading scheduler settings...");
-  loadSchedulerSettings();
-  loadBrightness();
-  FastLED.setDither(DISABLE_DITHER);
-
-  // Initialize Hardware
-  Serial.println("Step 3: Initializing LED matrices...");
-  display.begin();
-  
-  Serial.println("Step 4: Initializing theme manager...");
+  // Pass references to dependent managers
   themes.begin(&display, &content);
-  
-  // V15.1.0-2026-01-04T10:30:00Z - Pass ContentManager to WebController
-  Serial.println("Step 5: Starting WiFi and web server...");
   web.begin(&themes, &content);
-
-  // Initialize Time Client
-  Serial.println("Step 6: Starting NTP client...");
+  
+  // Start NTP
   timeClient.begin();
   
-  Serial.println("Step 7: Initializing logger...");
-  logger.begin(&timeClient);
-  
-  // Initialize schedulerForcedOff based on current state
-  timeClient.update();
-  if (global_run_mode == RUN_MODE_SCHEDULE) {
-    bool inSchedule = isScheduledTime();
-    if (inSchedule) {
-      schedulerForcedOff = true;
-      logger.log("Startup: Within schedule window - will activate Random Magic on first loop");
-    } else {
-      schedulerForcedOff = false;
-      logger.log("Startup: Outside schedule window - display will remain OFF");
-    }
-  }
-  
-  Serial.print("NTP Client started. Current run mode: ");
-  Serial.println(global_run_mode == RUN_MODE_MANUAL ? "MANUAL" : "SCHEDULE");
-  
-  // V15.1.0-2026-01-04T10:30:00Z - Display discovered content summary
-  Serial.println("\n========================================");
-  Serial.println("Content Discovery Summary:");
-  Serial.printf("  Total Scenes: %d\n", content.getTotalScenes());
-  Serial.printf("  Total Animations: %d\n", content.getTotalAnimations());
-  Serial.printf("  Total Tests: %d\n", content.getTotalTests());
-  Serial.println("Available Themes:");
-  Serial.println("  - Christmas | Halloween | Thanksgiving");
-  Serial.println("  - New Year | Ohio State");
-  Serial.println("========================================\n");
-  
-  logger.log("Setup complete!");
-  Serial.println("Serial Commands: s/a/r/t/c/n/0-9/+/-");
-  Serial.println("Web Interface: http://matrix.local\n");
-  
-  // V15.1.0-2026-01-04T10:30:00Z - Create web server task on Core 0
-  Serial.println("Step 8: Creating web server task on Core 0...");
-  xTaskCreatePinnedToCore(
-    webServerTask,
-    "WebServer",
-    8192,
-    NULL,
-    1,
-    NULL,
-    0
-  );
-  logger.log("Web server task started on Core 0 - animations will run smooth on Core 1!");
-  
-  Serial.println("Monitoring activity...\n");
+  Serial.println("System Ready.");
 }
 
 void loop() {
+  // Reset Watchdog Timer every loop iteration
   esp_task_wdt_reset();
   
-  unsigned long now = millis();
-  loopCount++;
+  // Update network services
+  timeClient.update();
+  web.handleClient();
   
-  // WiFi auto-reconnection check every 5 minutes
-  if (now - lastWiFiCheck > 300000) {
-    lastWiFiCheck = now;
-    if (WiFi.status() != WL_CONNECTED) {
-      logger.log("WiFi connection lost! Attempting reconnect...");
-      WiFi.disconnect();
-      delay(100);
-      WiFi.begin(WIFI_SSID, WIFI_PASS);
-      
-      int attempts = 0;
-      while (WiFi.status() != WL_CONNECTED && attempts < 10) {
-        delay(500);
-        Serial.print(".");
-        attempts++;
-      }
-      
-      if (WiFi.status() == WL_CONNECTED) {
-        logger.log("WiFi reconnected successfully!");
-      } else {
-        logger.log("WiFi reconnection failed - continuing without web access");
-      }
-    }
-  }
-  
-  logger.updateHeartbeat(themes.getCurrentTheme(), ESP.getFreeHeap());
-  
-  // Update NTP only once per minute
-  static unsigned long lastNTPUpdate = 0;
-  if (now - lastNTPUpdate > 60000 || lastNTPUpdate == 0) {
-    timeClient.update();
-    lastNTPUpdate = now;
-  }
-
-  // V15.1.0-2026-01-04T10:30:00Z - Scheduler now uses FFat schedule.json
-  if (global_run_mode == RUN_MODE_SCHEDULE) {
-    bool inSchedule = isScheduledTime();
-    
-    if (inSchedule && schedulerForcedOff) {
-      themes.setTheme(THEME_RANDOM_MAGIC);
-      schedulerForcedOff = false;
-      logger.log("Scheduler START - Random Magic activated");
-    } else if (!inSchedule && !schedulerForcedOff) {
-      themes.setTheme(THEME_OFF);
-      schedulerForcedOff = true;
-      logger.log("Scheduler STOP - Display OFF");
-    }
+  // Logical control for the display
+  if (isScheduledTime()) {
+    themes.update(); // Run current theme/animation/scene
   } else {
-    schedulerForcedOff = false;
+    // If outside of scheduled hours, keep the display dark
+    static bool was_on = true;
+    if (was_on) {
+      display.clear();
+      display.show();
+      was_on = false;
+      Serial.println("Schedule: Display entering Sleep Mode (Off Time)");
+    }
   }
-
-  // Update display
-  themes.update();
-
-  // Handle serial commands
-  themes.handleSerial();
 }
 
+/**
+ * Calculates if the current time falls within the user-defined schedule.
+ * Corrected to handle schedules that cross over midnight (e.g., 22:00 to 02:00).
+ */
 bool isScheduledTime() {
-  // V15.1.0-2026-01-04T10:30:00Z - Load schedule from ContentManager
   ScheduleConfig config;
-  if (!content.loadSchedule(config) || !config.enabled) {
-    return false;  // No valid schedule or disabled
+  
+  // If schedule fails to load, default to always ON (true) for safety
+  if (!content.loadSchedule(config)) {
+    return true; 
+  }
+
+  // Convert current time and schedule bounds to total minutes from midnight
+  int currentTotalMinutes = timeClient.getHours() * 60 + timeClient.getMinutes();
+  int startTotalMinutes = config.startHour * 60 + config.startMinute;
+  int endTotalMinutes = config.endHour * 60 + config.endMinute;
+
+  // Case A: Simple schedule (e.g., 8:00 AM to 10:00 PM)
+  if (startTotalMinutes < endTotalMinutes) {
+    return (currentTotalMinutes >= startTotalMinutes && currentTotalMinutes < endTotalMinutes);
+  } 
+  // Case B: Overnight schedule (e.g., 10:00 PM to 2:00 AM)
+  else if (startTotalMinutes > endTotalMinutes) {
+    return (currentTotalMinutes >= startTotalMinutes || currentTotalMinutes < endTotalMinutes);
   }
   
-  int currentHour = timeClient.getHours();
-  int currentMinute = timeClient.getMinutes();
-  
-  // Convert to minutes for easier comparison
-  int currentTime = currentHour * 60 + currentMinute;
-  int startTime = config.startHour * 60 + config.startMinute;
-  int endTime = config.endHour * 60 + config.endMinute;
-  
-  if (startTime <= endTime) {
-    return (currentTime >= startTime && currentTime < endTime);
-  } else {
-    // Wraps midnight
-    return (currentTime >= startTime || currentTime < endTime);
-  }
-}
-
-void loadSchedulerSettings() {
-  preferences.begin(PREFS_NAMESPACE, true);
-  
-  global_run_mode = preferences.getUChar(RUN_MODE_KEY, RUN_MODE_MANUAL);
-  // V15.1.0-2026-01-04T10:30:00Z - Start/end hours now in schedule.json, kept for compatibility
-
-  preferences.end();
-  Serial.printf("Scheduler: Mode=%d\n", global_run_mode);
-}
-
-void loadBrightness() {
-  preferences.begin(PREFS_NAMESPACE, true);
-  uint8_t savedBrightness = preferences.getUChar(BRIGHTNESS_KEY, DEFAULT_BRIGHTNESS);
-  preferences.end();
-  
-  display.setBrightness(savedBrightness);
-  Serial.printf("Brightness: %d\n", savedBrightness);
+  // Case C: Start equals End - interpret as "Run 24/7"
+  return true;
 }

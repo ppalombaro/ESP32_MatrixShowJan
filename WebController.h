@@ -1,59 +1,36 @@
-/* WebController.h
-   Web server coordinator - now delegates to WebPages and WebActions
-   VERSION: V15.1.0-2026-01-04T10:25:00Z - Refactored architecture
-   
-   V15.1.0-2026-01-04T10:25:00Z - Split functionality into modular components
-   V15.1.0-2026-01-04T10:25:00Z - WebController is now thin routing layer
-*/
-
-#ifndef WEB_CONTROLLER_H
-#define WEB_CONTROLLER_H
-
+#pragma once
 #include <Arduino.h>
-#include <WiFi.h>
 #include <WebServer.h>
-#include <ESPmDNS.h>
-#include "Config.h"
-#include "ThemeManager.h"
-#include "ContentManager.h"  // V15.1.0-2026-01-04T10:25:00Z
-#include "WebPages.h"        // V15.1.0-2026-01-04T10:25:00Z
-#include "WebActions.h"      // V15.1.0-2026-01-04T10:25:00Z
+#include "ContentManager.h"
+#include "SceneData.h"
+#include "Logger.h"
+
+#define WEBCONTROLLER_VERSION "15.4FIX"
 
 class WebController {
 public:
-    WebController();
-    void begin(ThemeManager* themeMgr, ContentManager* contentMgr);  // V15.1.0-2026-01-04T10:25:00Z - Added ContentManager
+    static WebController& instance();
+
+    void begin(uint16_t port = 80);
     void handleClient();
 
-private:
-    WebServer server;
-    ThemeManager* themes;
-    ContentManager* content;  // V15.1.0-2026-01-04T10:25:00Z
-    WebPages* pages;          // V15.1.0-2026-01-04T10:25:00Z - HTML generation
-    WebActions* actions;      // V15.1.0-2026-01-04T10:25:00Z - Request handling
-    
-    void setupWiFi();
-    
-    // V15.1.0-2026-01-04T10:25:00Z - Page request handlers (delegate to WebPages)
-    void handleRoot();
-    void handleConfig();
-    void handlePreview();
-    void handleRandomConfigPage();
-    void handleCountdownConfig();
-    void handleLogs();
-    
-    // V15.1.0-2026-01-04T10:25:00Z - Action request handlers (delegate to WebActions)
-    void handleSetMode();
-    void handleSetScene();
-    void handleSetAnimation();
-    void handleSetTest();
-    void handleBrightness();
-    void handleClear();
-    void handleSaveConfig();
-    void handleSaveRandomConfig();
-    void handleSetChristmasCountdown();
-    void handleSetNewYearCountdown();
-    void handleResetCountdown();
-};
+    // Routes
+    void handlePreview(uint16_t sceneId);
+    void handleSetBrightness(uint8_t percent);
+    void handleGetSchedule();
+    void handleSetSchedule(uint8_t hour, uint8_t minute);
 
-#endif
+private:
+    WebController();
+    ~WebController();
+
+    WebController(const WebController&) = delete;
+    WebController& operator=(const WebController&) = delete;
+
+    WebServer* _server;
+    uint8_t _brightnessPercent;
+
+    // Sticky schedule
+    uint8_t _schedHour;
+    uint8_t _schedMinute;
+};
