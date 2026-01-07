@@ -1,21 +1,23 @@
 #include "HolidayAnims.h"
-#include "Animations.h" // actual Animation definitions
-#include "MatrixDisplay.h"
 
 HolidayAnims::HolidayAnims(MatrixDisplay* disp)
-    : _display(disp)
-{}
+    : _display(disp) {}
 
+// Initialize all animations
 void HolidayAnims::beginAll() {
-    // Initialize all animations here
+    for (auto anim : _animations) {
+        if (anim) anim->begin(_display);
+    }
 }
 
+// Update all animations (call in loop)
 void HolidayAnims::updateAll() {
     for (auto anim : _animations) {
         if (anim) anim->update();
     }
 }
 
+// Retrieve animation by ID
 Animation* HolidayAnims::getAnimationById(int id) {
     for (auto anim : _animations) {
         if (anim && anim->id == id) {
@@ -23,8 +25,4 @@ Animation* HolidayAnims::getAnimationById(int id) {
         }
     }
     return nullptr;
-}
-
-void HolidayAnims::registerScenes() {
-    // Register code-based scenes here
 }
