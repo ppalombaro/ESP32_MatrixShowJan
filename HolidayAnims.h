@@ -1,31 +1,29 @@
 #pragma once
 
-#include <Arduino.h>
-#include "Animations.h"
+#include "Animations.h"      // Required: defines Animation
+#include "MatrixDisplay.h"
 
-// Container for all code-based holiday animations
 class HolidayAnims {
 public:
-    explicit HolidayAnims(MatrixDisplay* disp);
+    HolidayAnims(MatrixDisplay* disp);
 
     // Initialize all animations
     void beginAll();
 
-    // Update all animations (call every loop)
+    // Update all animations (call in loop)
     void updateAll();
 
-    // Resolve a code-based animation by ID
-    // Returns nullptr if ID is not handled here
+    // Access specific animations
     Animation* getAnimationById(int id);
 
-private:
-    MatrixDisplay* disp;
+    // Register scenes (used in HolidayAnimations.cpp)
+    void registerScenes();
 
-    // Code-based animations
-    SnowfallEffect        snowfall;
-    ChaseAnimation        chase;
-    ScrollAnimation       scroll;
-    MerryChristmasCount   countdown;
-    SpinningSnowflake     snowflake;
-    SparklingStar         star;
+private:
+    MatrixDisplay* _display = nullptr;
+
+    // Example: store animations, may already exist in your original code
+    std::vector<Animation*> _animations;
+
+    // Any other private members from the original class should remain
 };

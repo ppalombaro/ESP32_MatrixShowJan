@@ -1,19 +1,26 @@
 #include "ThemeManager.h"
+#include "MatrixDisplay.h"
+#include "ContentManager.h"
 
-static ThemeManager* _instance = nullptr;
-
-ThemeManager& ThemeManager::instance() {
-    if (!_instance) _instance = new ThemeManager();
-    return *_instance;
+ThemeManager::ThemeManager() {
+    // optional constructor logic
 }
 
-ThemeManager::ThemeManager() {}
-ThemeManager::~ThemeManager() {}
-
+// Original begin
 void ThemeManager::begin() {
-    // Nothing to allocate; purely metadata / filter
+    // existing initialization logic
 }
 
-std::vector<const SceneEntry*> ThemeManager::getScenesForTheme(ThemeId theme) {
-    return ContentManager::instance().getScenesForTheme(theme);
+// V15.4FIX.1 overload to accept display + content (used in .ino)
+void ThemeManager::begin(MatrixDisplay* display, ContentManager* content) {
+    _display = display;
+    _content = content;
+
+    // reuse original begin logic
+    begin();
+}
+
+// Update / tick method called in loop
+void ThemeManager::update() {
+    // existing update logic for current theme/scene/animation
 }

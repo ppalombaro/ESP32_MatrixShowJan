@@ -29,7 +29,11 @@ class ContentManager {
 public:
     static ContentManager& instance();
 
+    // Original API
     void begin();
+
+    // V15.4FIX.1 – compatibility overload for code using "if (!content.begin())"
+    bool begin(bool verbose);
 
     // Discovery / registration
     void discoverFFATScenes(const String& rootPath);

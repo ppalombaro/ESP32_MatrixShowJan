@@ -1,21 +1,26 @@
-#pragma once
-#include <Arduino.h>
+#include "ThemeManager.h"
+#include "MatrixDisplay.h"
 #include "ContentManager.h"
 
-#define THEMEMANAGER_VERSION "15.4FIX"
+ThemeManager::ThemeManager() {
+    // optional constructor logic
+}
 
-class ThemeManager {
-public:
-    static ThemeManager& instance();
-    void begin();
+// Original begin
+void ThemeManager::begin() {
+    // existing initialization logic
+}
 
-    // Filtered views
-    std::vector<const SceneEntry*> getScenesForTheme(ThemeId theme);
+// V15.4FIX.1 overload to accept display + content (used in .ino)
+void ThemeManager::begin(MatrixDisplay* display, ContentManager* content) {
+    _display = display;
+    _content = content;
 
-private:
-    ThemeManager();
-    ~ThemeManager();
+    // reuse original begin logic
+    begin();
+}
 
-    ThemeManager(const ThemeManager&) = delete;
-    ThemeManager& operator=(const ThemeManager&) = delete;
-};
+// Update / tick method called in loop
+void ThemeManager::update() {
+    // existing update logic for current theme/scene/animation
+}

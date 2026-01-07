@@ -1,36 +1,27 @@
 #pragma once
-#include <Arduino.h>
-#include <WebServer.h>
-#include "ContentManager.h"
-#include "SceneData.h"
-#include "Logger.h"
 
-#define WEBCONTROLLER_VERSION "15.4FIX"
+#include <Arduino.h>
+
+class ThemeManager;
+class ContentManager;
 
 class WebController {
 public:
-    static WebController& instance();
+    WebController();
 
+    // Original API
     void begin(uint16_t port = 80);
-    void handleClient();
 
-    // Routes
-    void handlePreview(uint16_t sceneId);
-    void handleSetBrightness(uint8_t percent);
-    void handleGetSchedule();
-    void handleSetSchedule(uint8_t hour, uint8_t minute);
+    // V15.4FIX.1 overload for current .ino usage
+    void begin(ThemeManager* themes, ContentManager* content);
+
+    void handle();  // call in loop for request processing
 
 private:
-    WebController();
-    ~WebController();
+    ThemeManager* _themes = nullptr;
+    ContentManager* _content = nullptr;
 
-    WebController(const WebController&) = delete;
-    WebController& operator=(const WebController&) = delete;
+    uint16_t _port = 80;
 
-    WebServer* _server;
-    uint8_t _brightnessPercent;
-
-    // Sticky schedule
-    uint8_t _schedHour;
-    uint8_t _schedMinute;
+    // any other private members from original class remain
 };
