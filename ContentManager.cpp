@@ -1,300 +1,49 @@
-/* ContentManager.cpp
-   Auto-discovery system implementation
-   VERSION: V15.1.0-2026-01-04T10:00:00Z - Initial implementation
-   
-   V15.1.0-2026-01-04T10:00:00Z - Auto-discovery and schedule management
-*/
-
 #include "ContentManager.h"
 
-ContentManager::ContentManager() {
+void ContentManager::begin() {
+    Logger::instance().log("[ContentManager] Initialization complete.");
 }
 
-bool ContentManager::begin() {
-    // V15.1.0-2026-01-04T10:00:00Z - Initialize FFat
-    if (!FFat.begin(true)) {
-        Serial.println("FFat mount failed");
-        return false;
-    }
-    
-    Serial.println("FFat mounted successfully");
-    refresh();
-    return true;
-}
+void ContentManager::discoverFFATScenes(const String& rootPath) {
+    File dir = FFat.open(rootPath);
+    if (!dir || !dir.isDirectory()) return;
 
-void ContentManager::refresh() {
-    // V15.1.2-2026-01-04T11:30:00Z - Clear existing content lists
-    scenes.clear();
-    animations.clear();
-    tests.clear();
-    
-    // V15.1.2-2026-01-04T11:30:00Z - Scan theme-based directory structure
-    const char* themes[] = {"christmas", "halloween", "thanksgiving", "newyear", "osu"};
-    
-    for (const char* theme : themes) {
-        String scenePath = String("/scenes/") + theme;
-        String animPath = String("/animations/") + theme;
-        
-        scanDirectory(scenePath.c_str(), "scene");
-        scanDirectory(animPath.c_str(), "animation");
-    }
-    
-    // V15.1.2-2026-01-04T11:30:00Z - Also scan root directories for backwards compatibility
-    scanDirectory("/scenes", "scene");
-    scanDirectory("/animations", "animation");
-    scanDirectory("/tests", "test");
-    
-    Serial.printf("Content discovered: %d scenes, %d animations, %d tests\n",
-                  scenes.size(), animations.size(), tests.size());
-}
-
-void ContentManager::scanDirectory(const char* path, String category) {
-    // V15.1.0-2026-01-04T10:00:00Z - Open directory
-    File dir = FFat.open(path);
-    if (!dir || !dir.isDirectory()) {
-        Serial.printf("Directory not found: %s\n", path);
-        return;
-    }
-    
-    // V15.1.0-2026-01-04T10:00:00Z - Iterate through files
     File file = dir.openNextFile();
-    int index = 0;
-    
     while (file) {
-        if (!file.isDirectory() && String(file.name()).endsWith(".json")) {
-            ContentItem item;
-            item.filename = String(file.name());
-            item.displayName = extractDisplayName(file.name());
-            item.category = category;
-            item.theme = extractTheme(file.name());
-            item.index = index++;
-            
-            // V15.1.0-2026-01-04T10:00:00Z - Add to appropriate list
-            if (category == "scene") {
-                scenes.push_back(item);
-            } else if (category == "animation") {
-                animations.push_back(item);
-            } else if (category == "test") {
-                tests.push_back(item);
-            }
-            
-            Serial.printf("Found %s: %s (%s)\n", 
-                         category.c_str(), 
-                         item.displayName.c_str(),
-                         item.filename.c_str());
+        if (!file.isDirectory()) {
+            SceneEntry entry;
+            entry.id = _nextId++;
+            entry.filePath = String(file.name());
+            entry.displayName = file.name();
+            entry.source = SceneSourceType::FFAT_JSON;
+            entry.theme = ThemeId::NONE;
+            _scenes.push_back(entry);
         }
         file = dir.openNextFile();
     }
 }
 
-String ContentManager::extractDisplayName(const char* filename) {
-    // V15.1.0-2026-01-04T10:00:00Z - Extract base name from path
-    String name = String(filename);
-    
-    // Remove path
-    int lastSlash = name.lastIndexOf('/');
-    if (lastSlash >= 0) {
-        name = name.substring(lastSlash + 1);
-    }
-    
-    // Remove .json extension
-    if (name.endsWith(".json")) {
-        name = name.substring(0, name.length() - 5);
-    }
-    
-    // Convert underscores to spaces and capitalize
-    name.replace('_', ' ');
-    
-    // Simple capitalization (first letter of each word)
-    bool capitalizeNext = true;
-    for (int i = 0; i < name.length(); i++) {
-        if (capitalizeNext && name[i] >= 'a' && name[i] <= 'z') {
-            name[i] = name[i] - 32;
-            capitalizeNext = false;
-        } else if (name[i] == ' ') {
-            capitalizeNext = true;
-        }
-    }
-    
-    return name;
+void ContentManager::registerCodeScene(const String& displayName, ThemeId theme, void (*callback)()) {
+    SceneEntry entry;
+    entry.id = _nextId++;
+    entry.displayName = displayName;
+    entry.source = SceneSourceType::CODE_SCENE;
+    entry.theme = theme;
+    entry.runCallback = callback;
+    _scenes.push_back(entry);
 }
 
-// ContentManager.cpp - V15.2.1-2026-01-04T13:50:00Z
-// Fix line 134 - toLowerCase() returns void, not String
-
-String ContentManager::extractTheme(const char* filename) {
-    // V15.1.2-2026-01-04T11:30:00Z - Extract theme from directory path first
-    String path = String(filename);
-    
-    // Check if path contains theme directory
-    if (path.indexOf("/christmas/") >= 0) return "christmas";
-    if (path.indexOf("/halloween/") >= 0) return "halloween";
-    if (path.indexOf("/thanksgiving/") >= 0) return "thanksgiving";
-    if (path.indexOf("/newyear/") >= 0) return "newyear";
-    if (path.indexOf("/osu/") >= 0) return "osu";
-    
-    // V15.2.1-2026-01-04T13:50:00Z - Fix toLowerCase() usage - it modifies in place
-    String name = path;  // V15.2.1 - Copy first
-    name.toLowerCase();  // V15.2.1 - Then modify in place (returns void)
-    
-    if (name.indexOf("christmas") >= 0 || name.indexOf("xmas") >= 0) return "christmas";
-    if (name.indexOf("halloween") >= 0) return "halloween";
-    if (name.indexOf("thanksgiving") >= 0) return "thanksgiving";
-    if (name.indexOf("newyear") >= 0 || name.indexOf("nye") >= 0) return "newyear";
-    if (name.indexOf("osu") >= 0 || name.indexOf("ohio") >= 0) return "osu";
-    
-    return "general";  // V15.1.2-2026-01-04T11:30:00Z - Default theme
-}
-
-std::vector<ContentItem> ContentManager::getScenes(String theme) {
-    // V15.1.0-2026-01-04T10:00:00Z - Return all scenes or filtered by theme
-    if (theme == "") {
-        return scenes;
+const SceneEntry* ContentManager::getSceneById(uint16_t id) const {
+    for (auto& scene : _scenes) {
+        if (scene.id == id) return &scene;
     }
-    
-    std::vector<ContentItem> filtered;
-    for (auto& item : scenes) {
-        if (item.theme == theme) {
-            filtered.push_back(item);
-        }
-    }
-    return filtered;
-}
-
-std::vector<ContentItem> ContentManager::getAnimations(String theme) {
-    // V15.1.0-2026-01-04T10:00:00Z - Return all animations or filtered by theme
-    if (theme == "") {
-        return animations;
-    }
-    
-    std::vector<ContentItem> filtered;
-    for (auto& item : animations) {
-        if (item.theme == theme) {
-            filtered.push_back(item);
-        }
-    }
-    return filtered;
-}
-
-std::vector<ContentItem> ContentManager::getTests() {
-    return tests;  // V15.1.0-2026-01-04T10:00:00Z
-}
-
-ContentItem* ContentManager::getContentByIndex(String category, int index) {
-    // V15.1.0-2026-01-04T10:00:00Z - Find content by category and index
-    std::vector<ContentItem>* list = nullptr;
-    
-    if (category == "scene") list = &scenes;
-    else if (category == "animation") list = &animations;
-    else if (category == "test") list = &tests;
-    
-    if (list && index >= 0 && index < list->size()) {
-        return &(*list)[index];
-    }
-    
     return nullptr;
 }
 
-ContentItem* ContentManager::getContentByFilename(String filename) {
-    // V15.1.0-2026-01-04T10:00:00Z - Search all lists for filename
-    for (auto& item : scenes) {
-        if (item.filename == filename) return &item;
+std::vector<const SceneEntry*> ContentManager::getScenesForTheme(ThemeId theme) const {
+    std::vector<const SceneEntry*> result;
+    for (auto& scene : _scenes) {
+        if (scene.theme == theme) result.push_back(&scene);
     }
-    for (auto& item : animations) {
-        if (item.filename == filename) return &item;
-    }
-    for (auto& item : tests) {
-        if (item.filename == filename) return &item;
-    }
-    
-    return nullptr;
-}
-
-bool ContentManager::loadSchedule(ScheduleConfig& config) {
-    // V15.1.0-2026-01-04T10:00:00Z - Load schedule from FFat
-    File file = FFat.open("/schedule.json", "r");
-    if (!file) {
-        Serial.println("No schedule.json found, using defaults");
-        return false;
-    }
-    
-    StaticJsonDocument<2048> doc;
-    DeserializationError error = deserializeJson(doc, file);
-    file.close();
-    
-    if (error) {
-        Serial.println("Failed to parse schedule.json");
-        return false;
-    }
-    
-    config.startHour = doc["startHour"] | 17;
-    config.startMinute = doc["startMinute"] | 0;
-    config.endHour = doc["endHour"] | 23;
-    config.endMinute = doc["endMinute"] | 0;
-    config.mode = doc["mode"] | "random";
-    config.enabled = doc["enabled"] | true;
-    
-    // V15.1.0-2026-01-04T10:00:00Z - Load allowed content list
-    config.allowedContent.clear();
-    JsonArray allowed = doc["allowedContent"];
-    for (JsonVariant v : allowed) {
-        config.allowedContent.push_back(v.as<String>());
-    }
-    
-    Serial.println("Schedule loaded successfully");
-    return true;
-}
-
-bool ContentManager::saveSchedule(const ScheduleConfig& config) {
-    // V15.1.0-2026-01-04T10:00:00Z - Save schedule to FFat
-    StaticJsonDocument<2048> doc;
-    
-    doc["startHour"] = config.startHour;
-    doc["startMinute"] = config.startMinute;
-    doc["endHour"] = config.endHour;
-    doc["endMinute"] = config.endMinute;
-    doc["mode"] = config.mode;
-    doc["enabled"] = config.enabled;
-    
-    JsonArray allowed = doc.createNestedArray("allowedContent");
-    for (const String& item : config.allowedContent) {
-        allowed.add(item);
-    }
-    
-    File file = FFat.open("/schedule.json", "w");
-    if (!file) {
-        Serial.println("Failed to open schedule.json for writing");
-        return false;
-    }
-    
-    serializeJson(doc, file);
-    file.close();
-    
-    Serial.println("Schedule saved successfully");
-    return true;
-}
-
-std::vector<ContentItem> ContentManager::getEnabledContent() {
-    // V15.1.0-2026-01-04T10:00:00Z - Return content enabled in schedule
-    ScheduleConfig config;
-    loadSchedule(config);
-    
-    std::vector<ContentItem> enabled;
-    
-    // If no allowed list, return all content
-    if (config.allowedContent.empty()) {
-        enabled.insert(enabled.end(), scenes.begin(), scenes.end());
-        enabled.insert(enabled.end(), animations.begin(), animations.end());
-        return enabled;
-    }
-    
-    // Filter based on allowed list
-    for (const String& filename : config.allowedContent) {
-        ContentItem* item = getContentByFilename(filename);
-        if (item) {
-            enabled.push_back(*item);
-        }
-    }
-    
-    return enabled;
+    return result;
 }

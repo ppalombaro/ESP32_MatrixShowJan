@@ -1,35 +1,22 @@
-/* SceneData.h
-   JSON scene renderer with FFat support - no hardcoded fallbacks
-   VERSION: V15.3.0-2026-01-04T16:00:00Z - All hardcoded scenes removed
-   
-   V15.3.0-2026-01-04T16:00:00Z - Removed all hardcoded scene fallbacks
-   V15.2.3-2026-01-04T15:00:00Z - Added matrix-aware rendering with auto-scaling
-   V15.1.1-2026-01-04T11:00:00Z - Created universal scene renderer
-*/
-
-#ifndef SCENE_DATA_H
-#define SCENE_DATA_H
-
+#pragma once
 #include <Arduino.h>
-#include <FFat.h>
+#include <vector>
 #include <ArduinoJson.h>
-#include "MatrixDisplay.h"
+#include "Logger.h"
+
+struct FrameData {
+    uint16_t durationMs;
+    String content;
+};
 
 class SceneData {
 public:
-    SceneData(MatrixDisplay* display);
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Primary render method (FFat only)
-    bool renderSceneFromFile(const char* filename, int matrix);
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Helper to check if file exists
-    bool sceneExists(const char* filename);
-    
-private:
-    MatrixDisplay* disp;
-    
-    // V15.3.0-2026-01-04T16:00:00Z - Parse and render with matrix dimensions and scaling
-    bool renderPixelArray(JsonArray pixels, int centerX, int centerY, int matrix, int matrixRows, int matrixCols, float scale = 1.0);
-};
+    SceneData(const String& filePath);
 
-#endif
+    bool load();  // Loads JSON from FFAT or SPIFFS
+    const std::vector<FrameData>& getFrames() const { return _frames; }
+
+private:
+    String _filePath;
+    std::vector<FrameData> _frames;
+};
