@@ -1,26 +1,21 @@
-#include "ThemeManager.h"
-#include "MatrixDisplay.h"
-#include "ContentManager.h"
+#pragma once
 
-ThemeManager::ThemeManager() {
-    // optional constructor logic
-}
+#include <Arduino.h>
 
-// Original begin
-void ThemeManager::begin() {
-    // existing initialization logic
-}
+// Forward declarations
+class MatrixDisplay;
+class ContentManager;
 
-// V15.4FIX.1 overload to accept display + content (used in .ino)
-void ThemeManager::begin(MatrixDisplay* display, ContentManager* content) {
-    _display = display;
-    _content = content;
+class ThemeManager {
+public:
+    ThemeManager();
 
-    // reuse original begin logic
-    begin();
-}
+    void begin(); // original zero-arg
+    void begin(MatrixDisplay* display, ContentManager* content);
 
-// Update / tick method called in loop
-void ThemeManager::update() {
-    // existing update logic for current theme/scene/animation
-}
+    void update();
+
+private:
+    MatrixDisplay* _display = nullptr;
+    ContentManager* _content = nullptr;
+};

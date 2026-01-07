@@ -6,7 +6,6 @@
 #include "HolidayAnims.h"
 #include "Logger.h"
 
-// Global objects
 MatrixDisplay display;
 ContentManager& content = ContentManager::instance();
 ThemeManager themes;
@@ -16,41 +15,28 @@ HolidayAnims holidayAnims(&display);
 void setup() {
     Serial.begin(115200);
 
-    // Initialize display
     if (!display.begin()) {
         Logger::instance().log("Display init failed!");
-        while (1); // halt
+        while (1);
     }
 
-    // Initialize content
-    content.begin(); // overload returns bool if used in if(!content.begin())
+    content.begin();
+    themes.begin(&display, &content);
+    web.begin(&themes, &content);
 
-    // Initialize themes
-    themes.begin(&display, &content); // uses V15.4FIX.1 overload
-
-    // Initialize web controller
-    web.begin(&themes, &content); // uses V15.4FIX.1 overload
-
-    // Register holiday scenes
     holidayAnims.registerScenes();
 
     Logger::instance().log("Setup complete.");
 }
 
 void loop() {
-    // Update content or animations
     content.update();
-    themes.update();  // safe now — update() exists
-    web.handle();     // process web requests
-
-    // Update animations
+    themes.update();
+    web.handle();
     holidayAnims.updateAll();
-
-    delay(10); // small delay to reduce CPU usage
+    delay(10);
 }
 
-// Scheduling logic stub (was broken by missing ScheduleConfig/loadSchedule)
 bool isScheduledTime() {
-    // Temporarily disable scheduling to allow compilation
     return true;
 }

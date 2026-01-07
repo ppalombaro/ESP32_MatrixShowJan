@@ -1,8 +1,14 @@
 #pragma once
+
 #include <Arduino.h>
 #include <vector>
 #include <FFat.h>
 #include "Logger.h"
+
+// Forward declarations
+class SceneEntry; // optional, already struct
+enum class ThemeId;
+enum class SceneSourceType;
 
 enum class SceneSourceType {
     FFAT_JSON,
@@ -17,23 +23,19 @@ enum class ThemeId {
 };
 
 struct SceneEntry {
-    uint16_t id;                // global numeric ID
-    String displayName;         // human-friendly name
-    String filePath;            // FFAT path or empty for code scene
+    uint16_t id;
+    String displayName;
+    String filePath;
     SceneSourceType source;
     ThemeId theme;
-    void (*runCallback)() = nullptr; // optional for code scenes
+    void (*runCallback)() = nullptr;
 };
 
 class ContentManager {
 public:
     static ContentManager& instance();
 
-    // Original API
     void begin();
-
-    // V15.4FIX.1 – compatibility overload for code using "if (!content.begin())"
-    bool begin(bool verbose);
 
     // Discovery / registration
     void discoverFFATScenes(const String& rootPath);
