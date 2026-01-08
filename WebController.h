@@ -16,8 +16,8 @@ public:
 private:
     WebServer server{80};
 
-    ThemeManager* themeMgr = nullptr;
-    ContentManager* contentMgr = nullptr;
+    ThemeManager* themes = nullptr;
+    ContentManager* content = nullptr;
 
-    void registerRoutes();
+    void setupRoutes();
 };

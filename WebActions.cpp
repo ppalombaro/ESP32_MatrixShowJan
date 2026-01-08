@@ -1,26 +1,21 @@
 #include "WebActions.h"
-#include "Config.h"   // <-- REQUIRED for THEME_OFF
+#include "ThemeManager.h"
+#include <WebServer.h>
 
-void WebActions::setMode(uint8_t mode) {
-    themeMgr->setTheme(mode);
-}
+extern WebServer server;
 
-void WebActions::setScene(int index) {
-    themeMgr->setSpecificScene(index);
-}
+WebActions::WebActions(ThemeManager* tm)
+: themeMgr(tm) {}
 
-void WebActions::setAnimation(int index) {
-    themeMgr->setSpecificAnimation(index);
-}
+void WebActions::attach() {
 
-void WebActions::setTest(int index) {
-    themeMgr->setSpecificTest(index);
-}
+    server.on("/theme/off", HTTP_GET, [this]() {
+        themeMgr->setTheme(0);
+        server.send(200, "text/plain", "theme off");
+    });
 
-void WebActions::setBrightness(uint8_t value) {
-    themeMgr->setBrightness(value);
-}
-
-void WebActions::clearDisplay() {
-    themeMgr->setTheme(THEME_OFF);
+    server.on("/theme/test", HTTP_GET, [this]() {
+        themeMgr->setTheme(1);
+        server.send(200, "text/plain", "theme test");
+    });
 }

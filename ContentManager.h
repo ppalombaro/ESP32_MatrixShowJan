@@ -1,23 +1,14 @@
 #pragma once
+
 #include <Arduino.h>
-#include "Logger.h"
 
 class HolidayAnims;
 
 class ContentManager {
 public:
-    ContentManager() {}
+    ContentManager();
 
-    void begin() {
-        Logger::instance().log("ContentManager ready");
-    }
-
-    void populateAnimations(HolidayAnims* anims) {
-        (void)anims;
-        Logger::instance().log("Animations populated");
-    }
-
-    void update() {
-        // no-op for now
-    }
+    void begin();
+    void populateAnimations(HolidayAnims* anims);
+    void update();
 };

@@ -7,20 +7,16 @@ class ContentManager;
 
 class ThemeManager {
 public:
-    ThemeManager() {}
+    ThemeManager();
 
-    // Match ESP32_MatrixShow.ino
-    void begin(MatrixDisplay*, ContentManager*) {}
-    void update() {}
+    void begin(MatrixDisplay* display, ContentManager* content);
+    void update();
 
-    void setTheme(uint8_t) {}
-    void setBrightness(uint8_t) {}
+    void setTheme(uint8_t mode);
 
-    void setSpecificScene(int) {}
-    void setSpecificAnimation(int) {}
-    void setSpecificTest(int) {}
+private:
+    MatrixDisplay* display = nullptr;
+    ContentManager* content = nullptr;
 
-    void setChristmasCountdownDate(uint16_t, uint8_t, uint8_t, uint8_t, uint8_t) {}
-    void setNewYearCountdownDate(uint16_t, uint8_t, uint8_t, uint8_t, uint8_t) {}
-    void resetCountdownDates() {}
+    uint8_t currentTheme = 0;
 };

@@ -1,18 +1,23 @@
 #include "ThemeManager.h"
 #include "MatrixDisplay.h"
 #include "ContentManager.h"
+#include "Logger.h"
 
 ThemeManager::ThemeManager() {}
 
-void ThemeManager::begin() {
-    // zero-arg begin
+void ThemeManager::begin(MatrixDisplay* disp, ContentManager* cont) {
+    display = disp;
+    content = cont;
+    currentTheme = 0;
+
+    Logger::instance().log("Themes initialized");
 }
 
-void ThemeManager::begin(MatrixDisplay* display, ContentManager* content) {
-    _display = display;
-    _content = content;
+void ThemeManager::setTheme(uint8_t mode) {
+    currentTheme = mode;
+    Logger::instance().log("Theme set to " + String(mode));
 }
 
 void ThemeManager::update() {
-    // update logic
+    // Reserved for future theme animation logic
 }
