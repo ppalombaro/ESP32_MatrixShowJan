@@ -19,6 +19,12 @@
 #define CONFIG_H
 
 #include <FastLED.h>
+ 
+// ============WiFi Configuration - EDIT THESE
+#define WIFI_SSID "palombaro"
+#define WIFI_PASSWORD "boobug00"
+#define HOSTNAME "palombaro-matrix"
+//--=====================================
 
 // ========== FEATURE ENABLE/DISABLE FLAGS ==========
 // V15.0.1-2026-01-03T11:00:00Z - Control which features are compiled/enabled

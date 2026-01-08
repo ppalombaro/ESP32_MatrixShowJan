@@ -3,6 +3,7 @@
 #include <NTPClient.h>
 #include <Preferences.h>      // Required for permanent storage
 #include "esp_task_wdt.h"      // Required for watchdog timer
+#include <WiFi.h>
 
 
 // Project Headers
@@ -38,44 +39,56 @@ void setup() {
     delay(1000);
     Serial.println("\n--- Starting ESP32 Matrix Show V15.4 Fix ---");
 
-    // Watchdog setup - 30s timeout
-    esp_task_wdt_init(30, true);
-    esp_task_wdt_add(NULL);
-    Serial.println("System: Watchdog set to 30s");
-    
     display.begin();
-    Serial.println("Display  Init");
- 
-    content.begin();  
-    Serial.println("Content Init");
- 
-    themes.begin(&display, &content);
-    Serial.println("Theme Init");
-    
-    web.begin(&themes, &content);
-    Serial.println("Web  Init");
+    Serial.println("--- Display Begin ---");
 
-    // Start NTP
+    content.begin();
+    Serial.println("--- Content Begin ---");
+
+    // -----------------------------
+    // WiFi MUST be up before NTP/Web
+    // -----------------------------
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+    Serial.print("WiFi connecting");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    Serial.println();
+    Serial.print("WiFi connected, IP: ");
+    Serial.println(WiFi.localIP());
+
+    // -----------------------------
+    // Network consumers AFTER WiFi
+    // -----------------------------
     timeClient.begin();
+    Serial.println("--- Time client started ---");
 
-    // Populate static and dynamic animations
+    themes.begin(&display, &content);
+    Serial.println("--- Themes initialized ---");
+
+    web.begin(&themes, &content);
+    Serial.println("--- Web server started ---");
+
     content.populateAnimations(&holidayAnims);
 
     Logger::instance().log("Setup complete.");
 }
-
+ 
 // -----------------------------
 // Main loop
 // -----------------------------
 void loop() {
-    esp_task_wdt_reset();      // Reset watchdog
+    esp_task_wdt_reset();
 
-    timeClient.update();       // Update NTP
+    timeClient.update();
+    web.handle();
 
-    web.handle();        // Correct WebController handling
-
-    content.update();          // Dynamic content
-    holidayAnims.updateAll();  // Update animations
+    content.update();
+    holidayAnims.updateAll();
 
     delay(10);
 }
