@@ -1,9 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
-#include <WiFi.h>
+#include <WebServer.h>
 
-// Forward declarations
 class ThemeManager;
 class ContentManager;
 
@@ -11,13 +10,14 @@ class WebController {
 public:
     WebController();
 
-    void begin(uint16_t port = 80);
-    void begin(ThemeManager* themes, ContentManager* content);
-
+    void begin(ThemeManager* themeMgr, ContentManager* contentMgr);
     void handle();
 
 private:
-    ThemeManager* _themes = nullptr;
-    ContentManager* _content = nullptr;
-    uint16_t _port = 80;
+    WebServer server{80};
+
+    ThemeManager* themeMgr = nullptr;
+    ContentManager* contentMgr = nullptr;
+
+    void registerRoutes();
 };

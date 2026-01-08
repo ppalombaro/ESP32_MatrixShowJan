@@ -4,16 +4,41 @@
 
 WebController::WebController() {}
 
-void WebController::begin(uint16_t port) {
-    _port = port;
+void WebController::begin(ThemeManager* tMgr, ContentManager* cMgr) {
+    themeMgr = tMgr;
+    contentMgr = cMgr;
+
+    registerRoutes();
+
+    server.begin();
+    Serial.println("HTTP server listening on port 80");
 }
 
-void WebController::begin(ThemeManager* themes, ContentManager* content) {
-    _themes = themes;
-    _content = content;
+void WebController::registerRoutes() {
+
+    // ---------- ROOT TEST ----------
+    server.on("/", HTTP_GET, [this]() {
+        server.send(200, "text/plain", "WEB OK");
+    });
+
+    // ---------- DISCOVERY TEST ----------
+    server.on("/discover", HTTP_GET, [this]() {
+        String json =
+            "{"
+            "\"device\":\"ESP32 Matrix Show\","
+            "\"version\":\"15.4\","
+            "\"status\":\"online\""
+            "}";
+
+        server.send(200, "application/json", json);
+    });
+
+    // ---------- NOT FOUND ----------
+    server.onNotFound([this]() {
+        server.send(404, "text/plain", "NOT FOUND");
+    });
 }
 
 void WebController::handle() {
-    // handle web requests
+    server.handleClient();
 }
-
