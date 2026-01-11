@@ -1,0 +1,14 @@
+{
+  "startHour": 13,
+  "startMinute": 0,
+  "endHour": 7,
+  "endMinute": 0,
+  "mode": "random",
+  "enabled": true,
+  "allowedContent": [
+    "christmas_tree.json",
+    "santa.json",
+    "snowfall.json",
+    "chase.json"
+  ]
+}

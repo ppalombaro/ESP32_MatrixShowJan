@@ -1,0 +1,41 @@
+{
+  "displayName": "bleedingwindows_timeline",
+  "loop": true,
+  "frames": [
+    {
+      "scene": "bleedwinframe00",
+      "durationMs": 300,
+      "note": "Blood level 0"
+    },
+    {
+      "scene": "bleedwinframe01",
+      "durationMs": 400,
+      "note": "Blood level 1"
+    },
+    {
+      "scene": "bleedwinframe02",
+      "durationMs": 500,
+      "note": "Blood level 2"
+    },
+    {
+      "scene": "bleedwinframe03",
+      "durationMs": 500,
+      "note": "Blood level 3"
+    },
+    {
+      "scene": "bleedwinframe04",
+      "durationMs": 500,
+      "note": "Blood level 4"
+    },
+    {
+      "scene": "bleedwinframe05",
+      "durationMs": 2000,
+      "note": "Blood level 5"
+    }
+  ],
+  "version": "16.0",
+  "metadata": {
+    "frameCount": 6,
+    "correctedBy": "V16.0-2026-01-09T02:45:00Z"
+  }
+}

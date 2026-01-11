@@ -1,0 +1,28 @@
+{
+  "displayName": "Halloween Split Screen",
+  "version": "16.3",
+  "theme": "halloween",
+  "durationMs": 15000,
+  "loop": true,
+  "frames": [
+    {
+      "matrix0Scene": "scenes/halloween/halloween_bat.json",
+      "matrix1Scene": "scenes/halloween/halloween_pumpkin.json",
+      "durationMs": 5000
+    },
+    {
+      "matrix0Scene": "scenes/halloween/halloween_pumpkin.json",
+      "matrix1Scene": "scenes/halloween/halloween_bat.json",
+      "durationMs": 5000
+    },
+    {
+      "matrix0Scene": "scenes/halloween/halloween_bat.json",
+      "matrix1Scene": "scenes/halloween/halloween_bat.json",
+      "durationMs": 5000
+    }
+  ],
+  "metadata": {
+    "frameCount": 3,
+    "description": "Matrix 0 shows bat, Matrix 1 shows pumpkin, then they swap, then both show bat"
+  }
+}

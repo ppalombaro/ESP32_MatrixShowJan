@@ -1,0 +1,95 @@
+{
+  "displayName": "animation_timeline",
+  "loop": true,
+  "frames": [
+    {
+      "scene": "left_eye_center",
+      "durationMs": 1000,
+      "dilated": true,
+      "note": "Stare at viewer"
+    },
+    {
+      "scene": "left_eye_left",
+      "durationMs": 600,
+      "dilated": false,
+      "note": "Quick glance left"
+    },
+    {
+      "scene": "left_eye_center",
+      "durationMs": 800,
+      "dilated": false,
+      "note": "Back to viewer"
+    },
+    {
+      "scene": "left_eye_right",
+      "durationMs": 600,
+      "dilated": false,
+      "note": "Quick glance right"
+    },
+    {
+      "scene": "left_eye_center",
+      "durationMs": 500,
+      "dilated": false,
+      "note": "Back to viewer"
+    },
+    {
+      "scene": "left_eye_up",
+      "durationMs": 700,
+      "dilated": false,
+      "note": "Look up"
+    },
+    {
+      "scene": "left_eye_center",
+      "durationMs": 500,
+      "dilated": true,
+      "note": "Stare again"
+    },
+    {
+      "scene": "left_eye_down",
+      "durationMs": 900,
+      "dilated": false,
+      "note": "Long creepy stare down"
+    },
+    {
+      "scene": "left_eye_up_left",
+      "durationMs": 400,
+      "dilated": false,
+      "note": "Quick diagonal"
+    },
+    {
+      "scene": "left_eye_down_right",
+      "durationMs": 800,
+      "dilated": false,
+      "note": "Opposite diagonal"
+    },
+    {
+      "scene": "left_eye_center",
+      "durationMs": 1200,
+      "dilated": true,
+      "note": "LONG stare"
+    },
+    {
+      "scene": "left_eye_left",
+      "durationMs": 300,
+      "dilated": false,
+      "note": "Very quick left"
+    },
+    {
+      "scene": "left_eye_right",
+      "durationMs": 300,
+      "dilated": false,
+      "note": "Very quick right"
+    },
+    {
+      "scene": "left_eye_center",
+      "durationMs": 1500,
+      "dilated": true,
+      "note": "Final stare"
+    }
+  ],
+  "version": "16.0",
+  "metadata": {
+    "frameCount": 14,
+    "correctedBy": "V16.0-2026-01-09T02:45:00Z"
+  }
+}

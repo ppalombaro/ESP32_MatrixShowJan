@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Matrix Studio v16.2 - Folder Import</title>
+<style>
+:root {
+  --bg-dark: #0f0a1f;
+  --bg-panel: #1a1233;
+  --accent: #9d50bb;
+  --neon-glow: #e02aff;
+  --text-main: #e0d7ff;
+  --text-dim: #9a8bbd;
+  --danger: #ff3e3e;
+  --warning: #ffb86c;
+  --success: #27ae60;
+}
+
+body { background: var(--bg-dark); color: var(--text-main); font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
+.header { background: #000; padding: 15px; border-bottom: 2px solid var(--accent); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 0 20px rgba(157, 80, 187, 0.4); }
+.nav { background: var(--bg-panel); display: flex; border-bottom: 1px solid #3d2b63; position: sticky; top: 0; z-index: 100; }
+.nav button { background: transparent; color: var(--text-dim); border: none; padding: 12px 25px; cursor: pointer; border-right: 1px solid #3d2b63; transition: 0.3s; font-weight: 500; }
+.nav button:hover { background: rgba(157, 80, 187, 0.2); color: #fff; }
+.nav button.active { background: var(--accent); color: #fff; font-weight: bold; text-shadow: 0 0 8px #fff; }
+
+.tab-content { display: none; padding: 20px; animation: portalIn 0.3s ease-out; }
+.tab-content.active { display: block; }
+@keyframes portalIn { from { opacity: 0; transform: scale(0.99); } to { opacity: 1; transform: scale(1); } }
+
+.section { background: var(--bg-panel); padding: 15px; margin-bottom: 15px; border-radius: 8px; border-left: 4px solid var(--neon-glow); box-shadow: 5px 5px 15px rgba(0,0,0,0.3); }
+.controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; }
+
+#canvas { display: grid; gap: 1px; background: #000; width: fit-content; border: 4px solid #2d1b4d; box-shadow: 0 0 30px rgba(224, 42, 255, 0.2); margin-top: 10px; }
+.cell { width: 14px; height: 14px; background: #050505; cursor: crosshair; }
+.cell:hover { filter: brightness(1.8); outline: 1px solid var(--neon-glow); z-index: 10; }
+
+textarea { background: #080511; color: #d199ff; font-family: 'Consolas', monospace; width: 100%; height: 500px; border: 1px solid #4a357a; padding: 12px; box-sizing: border-box; resize: vertical; font-size: 13px; border-radius: 4px; }
+input, select { background: #2d1b4d; color: #fff; border: 1px solid #5e419d; padding: 8px; border-radius: 4px; }
+button { background: var(--accent); color: #fff; border: none; padding: 10px 18px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s; box-shadow: 0 4px 0 #6a3580; }
+button:hover { background: var(--neon-glow); transform: translateY(-1px); box-shadow: 0 5px 15px rgba(224, 42, 255, 0.4); }
+button:active { transform: translateY(2px); box-shadow: 0 1px 0 #6a3580; }
+button.import { background: var(--success); box-shadow: 0 4px 0 #1e7d45; }
+button.warning { background: var(--warning); color: #000; box-shadow: 0 4px 0 #c78a4a; }
+button.danger { background: var(--danger); box-shadow: 0 4px 0 #a32222; }
+
+.status-bar { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+.req-label { color: var(--neon-glow); font-size: 11px; font-weight: bold; margin-bottom: 5px; display: block; text-transform: uppercase; letter-spacing: 1px; }
+
+.preview-controls { display: flex; gap: 10px; align-items: center; background: #1a1233; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+.preview-controls button { padding: 8px 15px; font-size: 14px; }
+
+.frame-picker { background: #0a0618; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #3d2b63; }
+.frame-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; max-height: 300px; overflow-y: auto; margin-top: 10px; }
+.frame-item { background: #1a1233; padding: 10px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+.frame-item:hover { border-color: var(--accent); background: #2d1b4d; }
+.frame-item.selected { border-color: var(--neon-glow); background: #2d1b4d; }
+.frame-item .name { font-weight: bold; color: var(--text-main); margin-bottom: 5px; }
+.frame-item .info { font-size: 11px; color: var(--text-dim); }
+
+/* V16.2-2026-01-09T03:10:00Z - Import status */
+.import-status { background: #1a1233; padding: 10px; border-radius: 4px; margin-top: 10px; border-left: 3px solid var(--success); }
+.import-status.error { border-left-color: var(--danger); }
+</style>
+</head>
+<body onload="init()">
+
+<div class="header">
+  <h1 style="margin:0; font-size: 22px; color: var(--neon-glow); text-shadow: 0 0 10px var(--accent);">ðŸ”® Matrix Studio v16.2</h1>
+  <div style="font-weight:bold; color: var(--text-dim);">
+    Pixels: <span id="pixelCount" style="color:var(--neon-glow)">0</span> | 
+    Scenes: <span id="sceneCount">0</span> | 
+    Preview: <span id="previewStatus" style="color:var(--warning)">Stopped</span>
+  </div>
+</div>
+
+<div class="nav">
+  <button onclick="showTab('scene-editor')" id="nav-scene" class="active">Scene Editor</button>
+  <button onclick="showTab('animation-builder')" id="nav-anim">Animation Builder</button>
+  <button onclick="showTab('preview')" id="nav-preview">Preview Animation</button>
+</div>
+
+<div id="scene-editor" class="tab-content active">
+  <div class="controls">
+    <select id="sceneSel" onchange="switchScene(this.value)" style="min-width:180px"></select>
+    <button onclick="newScene()">âš¡ New Scene</button>
+    
+    <input type="file" id="importFile" style="display:none" onchange="handleFileImport(event)" accept=".json">
+    <button class="import" onclick="document.getElementById('importFile').click()">ðŸ”¥ Import Single</button>
+    
+    <!-- V16.2-2026-01-09T03:10:00Z - Folder import with webkitdirectory -->
+    <input type="file" id="folderImport" style="display:none" onchange="handleFolderImport(event)" webkitdirectory directory multiple>
+    <button class="import" onclick="document.getElementById('folderImport').click()">ðŸ“ Import Animation Folder</button>
+    
+    <button onclick="cloneScene()" style="background:#4a357a">ðŸ’¯ Duplicate</button>
+    <button onclick="exportScene()" class="warning">ðŸ’€ Export Minified</button>
+  </div>
+  
+  <!-- V16.2-2026-01-09T03:10:00Z - Import status display -->
+  <div id="importStatus" style="display:none;" class="import-status">
+    <div style="font-weight:bold; margin-bottom:5px;">Import Status:</div>
+    <div id="importStatusText"></div>
+  </div>
+
+  <div style="display: flex; gap: 20px; align-items: flex-start;">
+    <div>
+        <div class="section" style="padding:10px; display:flex; gap:15px; align-items:center; border-left-color: var(--accent);">
+            <label>Grid: <input id="gridCols" type="number" value="40" style="width:50px" onchange="rebuildGrid()"></label>
+            <label>Ink: <input type="color" id="brushColor" value="#9d50bb"></label>
+            <button onclick="fillBackground()" style="background:#2d1b4d; font-size:12px;">Flood Fill</button>
+            <button onclick="clearCanvas()" class="danger" style="padding:5px 10px; font-size:11px;">Clear</button>
+        </div>
+        <div id="canvas"></div>
+        <div class="status-bar">L-Click: Draw | Shift+Click: Erase</div>
+    </div>
+    
+    <div style="flex-grow: 1;">
+      <span class="req-label">PASTE JSON BELOW THEN CLICK PURPLE LOAD BUTTON</span>
+      <textarea id="jsonEditor" spellcheck="false" placeholder="Paste JSON here..."></textarea>
+      <div style="margin-top:10px;">
+          <button onclick="applyJsonFromText(true)" style="width:100%; background:#e02aff; height:50px; font-size:16px;">ðŸ”„ LOAD INTO GRID & VALIDATE</button>
+      </div>
+      <div class="status-bar">V16.2 Folder Import: Select animation folder containing frames + animation_timeline.json</div>
+    </div>
+  </div>
+</div>
+
+<div id="animation-builder" class="tab-content">
+  <div class="section">
+    <span class="req-label">Animation Timeline (Auto-loaded from folder or manual edit)</span>
+    
+    <div class="frame-picker">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <span class="req-label" style="margin: 0;">Available Frames (Click to add to timeline)</span>
+        <div>
+          <label style="margin-right: 10px;">Duration (ms): <input type="number" id="frameDuration" value="100" style="width: 80px;"></label>
+          <button onclick="sortFrames()" style="font-size: 12px; padding: 5px 10px;">ðŸ”„ Sort A-Z</button>
+        </div>
+      </div>
+      <div id="frameList" class="frame-list"></div>
+    </div>
+    
+    <textarea id="animJsonEditor" spellcheck="false" style="height:400px; margin-top: 15px;"></textarea>
+    <div style="margin-top:15px; display:flex; gap:10px;">
+        <button onclick="exportAnimation()" class="warning">ðŸ“¦ Export Timeline</button>
+        <button onclick="resetAnimTemplate()" style="background:#4a357a">ðŸ“œ Reset Template</button>
+        <button onclick="clearTimeline()" class="danger">ðŸ—‘ï¸ Clear All Frames</button>
+    </div>
+    <div class="status-bar">Timeline auto-loads from animation_timeline.json | Manually add frames by clicking above</div>
+  </div>
+</div>
+
+<div id="preview" class="tab-content">
+  <div class="preview-controls">
+    <button onclick="startPreview()" class="import">â–¶ï¸ Play</button>
+    <button onclick="stopPreview()" class="danger">â¹ï¸ Stop</button>
+    <button onclick="stepPreview()" style="background:#4a357a">â­ï¸ Next Frame</button>
+    <label>Speed: <input type="range" id="previewSpeed" min="50" max="2000" value="500" style="width: 150px;" oninput="updatePreviewSpeed()"></label>
+    <span id="previewSpeedLabel" style="color: var(--text-dim);">500ms</span>
+    <span style="margin-left: auto; color: var(--text-dim);">Frame: <span id="currentFrame" style="color: var(--neon-glow);">0</span> / <span id="totalFrames">0</span></span>
+  </div>
+  
+  <div style="display: flex; gap: 20px;">
+    <div>
+      <div class="section" style="padding: 10px;">
+        <span class="req-label">Preview Canvas</span>
+      </div>
+      <div id="previewCanvas"></div>
+    </div>
+    
+    <div style="flex-grow: 1;">
+      <div class="section">
+        <span class="req-label">Timeline JSON (Auto-loaded from folder)</span>
+        <textarea id="previewTimelineDisplay" readonly spellcheck="false" style="height: 400px; opacity: 0.7;"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// V16.2-2026-01-09T03:10:00Z - Folder import with auto-timeline detection
+let scenes = {};
+let currentScene = null;
+let previewInterval = null;
+let previewFrameIndex = 0;
+let previewTimeline = null;
+
+function init() {
+    rebuildGrid();
+    rebuildPreviewCanvas();
+    resetAnimTemplate();
+    updateFrameList();
+}
+
+// V16.2-2026-01-09T03:10:00Z - Handle folder import
+function handleFolderImport(event) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    showImportStatus("Processing folder...", false);
+    
+    let frameFiles = [];
+    let timelineFile = null;
+    
+    // V16.2-2026-01-09T03:10:00Z - Separate timeline from frames
+    Array.from(files).forEach(file => {
+        if (file.name.includes('timeline') && file.name.endsWith('.json')) {
+            timelineFile = file;
+        } else if (file.name.endsWith('.json')) {
+            frameFiles.push(file);
+        }
+    });
+    
+    let imported = 0;
+    let errors = [];
+    
+    // V16.2-2026-01-09T03:10:00Z - Load all frame files first
+    const loadPromises = frameFiles.map(file => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const content = JSON.parse(e.target.result);
+                    if (!content.sceneId) {
+                        errors.push(`${file.name}: Missing sceneId`);
+                        resolve();
+                        return;
+                    }
+                    const id = content.sceneId;
+                    scenes[id] = normalizeScene(content);
+                    imported++;
+                    resolve();
+                } catch (err) { 
+                    errors.push(`${file.name}: ${err.message}`);
+                    resolve();
+                }
+            };
+            reader.onerror = () => {
+                errors.push(`${file.name}: Read error`);
+                resolve();
+            };
+            reader.readAsText(file);
+        });
+    });
+    
+    // V16.2-2026-01-09T03:10:00Z - After all frames loaded, load timeline
+    Promise.all(loadPromises).then(() => {
+        updateFrameList();
+        
+        if (timelineFile) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const timeline = JSON.parse(e.target.result);
+                    document.getElementById('animJsonEditor').value = JSON.stringify(timeline, null, 2);
+                    
+                    let statusMsg = `âœ”ï¸ Imported ${imported} frames + timeline`;
+                    if (errors.length > 0) {
+                        statusMsg += `\nâš ï¸ ${errors.length} errors:\n${errors.slice(0, 3).join('\n')}`;
+                        if (errors.length > 3) statusMsg += `\n... and ${errors.length - 3} more`;
+                    }
+                    showImportStatus(statusMsg, errors.length > 0);
+                    
+                    if (imported > 0) {
+                        updateSelectors(Object.keys(scenes)[0]);
+                    }
+                } catch (err) {
+                    showImportStatus(`âœ”ï¸ Imported ${imported} frames\nâš ï¸ Timeline error: ${err.message}`, true);
+                }
+            };
+            reader.readAsText(timelineFile);
+        } else {
+            let statusMsg = `âœ”ï¸ Imported ${imported} frames (no timeline found)`;
+            if (errors.length > 0) {
+                statusMsg += `\nâš ï¸ ${errors.length} errors:\n${errors.slice(0, 3).join('\n')}`;
+            }
+            showImportStatus(statusMsg, errors.length > 0);
+            
+            if (imported > 0) {
+                updateSelectors(Object.keys(scenes)[0]);
+            }
+        }
+    });
+}
+
+// V16.2-2026-01-09T03:10:00Z - Show import status
+function showImportStatus(message, isError) {
+    const status = document.getElementById('importStatus');
+    const text = document.getElementById('importStatusText');
+    status.style.display = 'block';
+    status.className = 'import-status' + (isError ? ' error' : '');
+    text.innerText = message;
+    
+    setTimeout(() => {
+        status.style.display = 'none';
+    }, 8000);
+}
+
+function handleFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const content = JSON.parse(e.target.result);
+            if (!content.sceneId) {
+                alert("Missing required field: sceneId");
+                return;
+            }
+            const id = content.sceneId;
+            scenes[id] = normalizeScene(content);
+            updateSelectors(id);
+            updateFrameList();
+            showImportStatus("âœ”ï¸ Imported " + id, false);
+        } catch (err) { 
+            alert("Invalid JSON file: " + err.message); 
+        }
+    };
+    reader.readAsText(file);
+}
+
+function rebuildGrid() {
+    const cols = parseInt(document.getElementById('gridCols').value);
+    const canvas = document.getElementById('canvas');
+    canvas.innerHTML = '';
+    canvas.style.gridTemplateColumns = `repeat(${cols}, 15px)`;
+    for (let y = 0; y < 25; y++) {
+        for (let x = 0; x < cols; x++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.id = `c-${x}-${y}`;
+            cell.onmousedown = (e) => { if(e.buttons === 1) handleDraw(x, y, e.shiftKey); };
+            cell.onmouseover = (e) => { if(e.buttons === 1) handleDraw(x, y, e.shiftKey); };
+            canvas.appendChild(cell);
+        }
+    }
+    renderMatrix();
+}
+
+function rebuildPreviewCanvas() {
+    const cols = 40;
+    const canvas = document.getElementById('previewCanvas');
+    canvas.innerHTML = '';
+    canvas.style.display = 'grid';
+    canvas.style.gap = '1px';
+    canvas.style.background = '#000';
+    canvas.style.gridTemplateColumns = `repeat(${cols}, 15px)`;
+    canvas.style.border = '4px solid #2d1b4d';
+    canvas.style.boxShadow = '0 0 30px rgba(224, 42, 255, 0.2)';
+    
+    for (let y = 0; y < 25; y++) {
+        for (let x = 0; x < cols; x++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.id = `p-${x}-${y}`;
+            cell.style.cursor = 'default';
+            canvas.appendChild(cell);
+        }
+    }
+}
+
+function handleDraw(x, y, isErase) {
+    if (!currentScene) return;
+    const s = scenes[currentScene];
+    const cx = parseInt(s.centerX) || 0, cy = parseInt(s.centerY) || 0;
+    const rx = x - cx, ry = y - cy;
+    
+    s.pixels = (s.pixels || []).filter(p => !(p.x === rx && p.y === ry));
+    if (!isErase) {
+        const c = hexToRgb(document.getElementById('brushColor').value);
+        s.pixels.push({ x: rx, y: ry, ...c });
+    }
+    syncToText();
+    renderMatrix();
+}
+
+function normalizeScene(data) {
+    return {
+        "sceneId": data.sceneId || "untitled",
+        "version": "16.2",
+        "theme": data.theme || "christmas",
+        "description": data.description || data.displayName || data.sceneId || "Scene",
+        "centerX": parseInt(data.centerX) || 10,
+        "centerY": parseInt(data.centerY) || 12,
+        "pixels": data.pixels || [],
+        "metadata": {
+            "pixelCount": (data.pixels || []).length
+        }
+    };
+}
+
+function syncToText() {
+    if (!currentScene) return;
+    const s = scenes[currentScene];
+    const normalized = normalizeScene(s);
+    scenes[currentScene] = normalized;
+    document.getElementById('jsonEditor').value = JSON.stringify(normalized, null, 2);
+}
+
+function applyJsonFromText(manual) {
+    try {
+        const raw = document.getElementById('jsonEditor').value;
+        const data = JSON.parse(raw);
+        
+        if (!data.sceneId) {
+            alert("Missing required field: sceneId");
+            return;
+        }
+        if (!data.pixels || !Array.isArray(data.pixels)) {
+            alert("Missing or invalid pixels array");
+            return;
+        }
+        
+        const id = data.sceneId;
+        scenes[id] = normalizeScene(data);
+        currentScene = id;
+        updateSelectors(id);
+        updateFrameList();
+        renderMatrix();
+        if(manual) {
+            showImportStatus("âœ”ï¸ Loaded " + id, false);
+        }
+    } catch (e) {
+        alert("JSON Error: " + e.message);
+    }
+}
+
+function renderMatrix() {
+    const s = scenes[currentScene];
+    if (!s) return;
+    const cx = parseInt(s.centerX) || 0, cy = parseInt(s.centerY) || 0;
+    const cols = parseInt(document.getElementById('gridCols').value);
+    document.querySelectorAll('.cell').forEach(c => c.style.backgroundColor = '#050505');
+    (s.pixels || []).forEach(p => {
+        const ax = p.x + cx, ay = p.y + cy;
+        if (ax >= 0 && ax < cols && ay >= 0 && ay < 25) {
+            const cell = document.getElementById(`c-${ax}-${ay}`);
+            if(cell) cell.style.backgroundColor = `rgb(${p.r},${p.g},${p.b})`;
+        }
+    });
+    document.getElementById('pixelCount').innerText = s.pixels ? s.pixels.length : 0;
+}
+
+function renderPreviewFrame(sceneId) {
+    const s = scenes[sceneId];
+    if (!s) {
+        console.warn(`Frame not found: ${sceneId}`);
+        return;
+    }
+    
+    const cx = parseInt(s.centerX) || 0, cy = parseInt(s.centerY) || 0;
+    document.querySelectorAll('#previewCanvas .cell').forEach(c => c.style.backgroundColor = '#050505');
+    
+    (s.pixels || []).forEach(p => {
+        const ax = p.x + cx, ay = p.y + cy;
+        if (ax >= 0 && ax < 40 && ay >= 0 && ay < 25) {
+            const cell = document.getElementById(`p-${ax}-${ay}`);
+            if(cell) cell.style.backgroundColor = `rgb(${p.r},${p.g},${p.b})`;
+        }
+    });
+}
+
+function fillBackground() {
+    if (!currentScene) return;
+    const c = hexToRgb(document.getElementById('brushColor').value);
+    const s = scenes[currentScene];
+    const cx = parseInt(s.centerX) || 0, cy = parseInt(s.centerY) || 0;
+    const cols = parseInt(document.getElementById('gridCols').value);
+    s.pixels = [];
+    for (let y = 0; y < 25; y++) {
+        for (let x = 0; x < cols; x++) {
+            s.pixels.push({ x: x - cx, y: y - cy, ...c });
+        }
+    }
+    syncToText();
+    renderMatrix();
+}
+
+function clearCanvas() {
+    if (currentScene && confirm("Clear all pixels?")) {
+        scenes[currentScene].pixels = [];
+        syncToText();
+        renderMatrix();
+    }
+}
+
+function updateSelectors(id) {
+    const sel = document.getElementById('sceneSel');
+    sel.innerHTML = Object.keys(scenes).map(k => `<option value="${k}">${k}</option>`).join('');
+    sel.value = id;
+    currentScene = id;
+    document.getElementById('sceneCount').innerText = Object.keys(scenes).length;
+    syncToText();
+    renderMatrix();
+}
+
+function switchScene(id) {
+    currentScene = id;
+    syncToText();
+    renderMatrix();
+}
+
+function updateFrameList() {
+    const list = document.getElementById('frameList');
+    const sortedIds = Object.keys(scenes).sort();
+    
+    list.innerHTML = sortedIds.map(id => {
+        const s = scenes[id];
+        return `<div class="frame-item" onclick="addFrameToTimeline('${id}')">
+            <div class="name">${id}</div>
+            <div class="info">${s.metadata.pixelCount} pixels | ${s.theme}</div>
+        </div>`;
+    }).join('');
+}
+
+function sortFrames() {
+    updateFrameList();
+}
+
+function addFrameToTimeline(sceneId) {
+    try {
+        const current = JSON.parse(document.getElementById('animJsonEditor').value);
+        const duration = parseInt(document.getElementById('frameDuration').value) || 100;
+        
+        current.frames.push({
+            "sceneId": sceneId,
+            "durationMs": duration
+        });
+        
+        current.metadata.frameCount = current.frames.length;
+        
+        document.getElementById('animJsonEditor').value = JSON.stringify(current, null, 2);
+        
+        event.target.classList.add('selected');
+        setTimeout(() => event.target.classList.remove('selected'), 300);
+    } catch (e) {
+        alert("Invalid timeline JSON: " + e.message);
+    }
+}
+
+function clearTimeline() {
+    if (confirm("Clear all frames from timeline?")) {
+        try {
+            const current = JSON.parse(document.getElementById('animJsonEditor').value);
+            current.frames = [];
+            current.metadata.frameCount = 0;
+            document.getElementById('animJsonEditor').value = JSON.stringify(current, null, 2);
+        } catch (e) {
+            alert("Invalid timeline JSON: " + e.message);
+        }
+    }
+}
+
+function exportScene() {
+    try {
+        const data = JSON.parse(document.getElementById('jsonEditor').value);
+        const normalized = normalizeScene(data);
+        const blob = new Blob([JSON.stringify(normalized)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${normalized.sceneId}.json`;
+        a.click();
+    } catch (e) { 
+        alert("Invalid JSON: " + e.message); 
+    }
+}
+
+function exportAnimation() {
+    try {
+        const data = JSON.parse(document.getElementById('animJsonEditor').value);
+        if (!data.displayName) {
+            alert("Missing required field: displayName");
+            return;
+        }
+        if (!data.frames || !Array.isArray(data.frames)) {
+            alert("Missing or invalid frames array");
+            return;
+        }
+        
+        const normalized = {
+            "displayName": data.displayName,
+            "version": "16.2",
+            "theme": data.theme || "christmas",
+            "loop": data.loop !== false,
+            "frames": data.frames,
+            "metadata": {
+                "frameCount": data.frames.length
+            }
+        };
+        
+        const blob = new Blob([JSON.stringify(normalized)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `animation_timeline.json`;
+        a.click();
+    } catch (e) { 
+        alert("Invalid JSON: " + e.message); 
+    }
+}
+
+function newScene() {
+    const id = prompt("Scene ID:");
+    if (!id) return;
+    scenes[id] = normalizeScene({ 
+        sceneId: id, 
+        theme: "christmas", 
+        pixels: [], 
+        centerX: 10, 
+        centerY: 12 
+    });
+    updateSelectors(id);
+    updateFrameList();
+}
+
+function cloneScene() {
+    if(!currentScene) return;
+    const id = prompt("Clone ID:", currentScene + "_copy");
+    if(!id) return;
+    const cloned = JSON.parse(JSON.stringify(scenes[currentScene]));
+    cloned.sceneId = id;
+    scenes[id] = normalizeScene(cloned);
+    updateSelectors(id);
+    updateFrameList();
+}
+
+function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return { r, g, b };
+}
+
+function showTab(t) {
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById(t).classList.add('active');
+    document.getElementById('nav-' + t.split('-')[0]).classList.add('active');
+    
+    if (t === 'preview') {
+        loadTimelineForPreview();
+    }
+}
+
+function resetAnimTemplate() {
+    const template = {
+        "displayName": "Halloween Loop",
+        "version": "16.2",
+        "theme": "halloween",
+        "loop": true,
+        "frames": [],
+        "metadata": {
+            "frameCount": 0
+        }
+    };
+    document.getElementById('animJsonEditor').value = JSON.stringify(template, null, 2);
+}
+
+function loadTimelineForPreview() {
+    try {
+        previewTimeline = JSON.parse(document.getElementById('animJsonEditor').value);
+        document.getElementById('previewTimelineDisplay').value = JSON.stringify(previewTimeline, null, 2);
+        document.getElementById('totalFrames').innerText = previewTimeline.frames.length;
+        document.getElementById('currentFrame').innerText = '0';
+    } catch (e) {
+        alert("Invalid timeline JSON: " + e.message);
+    }
+}
+
+function startPreview() {
+    if (!previewTimeline || !previewTimeline.frames || previewTimeline.frames.length === 0) {
+        alert("No frames in timeline. Import animation folder or add frames in Animation Builder.");
+        return;
+    }
+    
+    stopPreview();
+    previewFrameIndex = 0;
+    document.getElementById('previewStatus').innerText = 'Playing';
+    document.getElementById('previewStatus').style.color = 'var(--success)';
+    
+    playNextFrame();
+}
+
+function playNextFrame() {
+    if (!previewTimeline || previewFrameIndex >= previewTimeline.frames.length) {
+        if (previewTimeline.loop) {
+            previewFrameIndex = 0;
+        } else {
+            stopPreview();
+            return;
+        }
+    }
+    
+    const frame = previewTimeline.frames[previewFrameIndex];
+    renderPreviewFrame(frame.sceneId);
+    document.getElementById('currentFrame').innerText = previewFrameIndex + 1;
+    
+    const duration = frame.durationMs || 100;
+    previewInterval = setTimeout(() => {
+        previewFrameIndex++;
+        playNextFrame();
+    }, duration);
+}
+
+function stopPreview() {
+    if (previewInterval) {
+        clearTimeout(previewInterval);
+        previewInterval = null;
+    }
+    document.getElementById('previewStatus').innerText = 'Stopped';
+    document.getElementById('previewStatus').style.color = 'var(--warning)';
+}
+
+function stepPreview() {
+    if (!previewTimeline || !previewTimeline.frames || previewTimeline.frames.length === 0) {
+        alert("No frames in timeline.");
+        return;
+    }
+    
+    stopPreview();
+    
+    if (previewFrameIndex >= previewTimeline.frames.length) {
+        previewFrameIndex = 0;
+    }
+    
+    const frame = previewTimeline.frames[previewFrameIndex];
+    renderPreviewFrame(frame.sceneId);
+    document.getElementById('currentFrame').innerText = previewFrameIndex + 1;
+    
+    previewFrameIndex++;
+}
+
+function updatePreviewSpeed() {
+    const speed = document.getElementById('previewSpeed').value;
+    document.getElementById('previewSpeedLabel').innerText = speed + 'ms';
+}
+</script>
+</body>
+</html>
