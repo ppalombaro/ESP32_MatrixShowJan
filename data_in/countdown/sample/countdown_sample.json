@@ -1,8 +1,0 @@
-{
-  "targetDate": "2026-01-25 00:00:00",
-  "comment": "Human-readable format: YYYY-MM-DD HH:MM:SS (UTC time)",
-  "alternativeFormat": {
-    "targetDate": 1766638800,
-    "comment": "Unix timestamp also supported"
-  }
-}

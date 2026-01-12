@@ -1,0 +1,18 @@
+{
+  "displayName": "Halloween Split Screen",
+  "version": "16.3",
+  "theme": "test",
+  "durationMs": 5000,
+  "loop": true,
+  "frames": [
+    {
+      "matrix0Scene": "idRightScene.json",
+      "matrix1Scene": "idLeftScene.json",
+      "durationMs": 5000
+    }
+  ],
+  "metadata": {
+    "frameCount": 1,
+    "description": "Matrix 0 shows R , Matrix 1 shows L"
+  }
+}

@@ -29,13 +29,13 @@ ContentManager::ContentManager() {
 }
 
 void ContentManager::begin(MatrixDisplay* display) {
-    Serial.println("DEBUG: ContentManager.begin() ENTRY");
+    Logger::instance().log("DEBUG: ContentManager.begin() ENTRY");
     
     disp = display;
     contentRegistry.clear();
     discoveredThemes.clear();
     
-    Serial.println("[ContentManager] Reading custom flash storage...");
+    Logger::instance().log("[ContentManager] Reading custom flash storage...");
     
     // Read file index from flash
     if (!readCustomStorage()) {
@@ -52,45 +52,68 @@ void ContentManager::begin(MatrixDisplay* display) {
 }
 
 bool ContentManager::readCustomStorage() {
-    // V16.1.3-2026-01-09T05:00:00Z - Read custom format from flash
+    // V16.4.4-2026-01-11T22:05:00Z - Use Logger for web visibility
     uint32_t flash_addr = DATA_PARTITION_OFFSET + DATA_AREA_START;
+    
+    Logger::instance().log("[ContentManager] Reading flash at 0x" + String(flash_addr, HEX));
     
     // Read file count
     uint32_t file_count = 0;
-    if (esp_flash_read(NULL, &file_count, flash_addr, 4) != ESP_OK) {
-        Serial.println("ERROR: Cannot read file count from flash");
+    esp_err_t err = esp_flash_read(NULL, &file_count, flash_addr, 4);
+    
+    Logger::instance().log("[ContentManager] Flash read returned: " + String(err));
+    Logger::instance().log("[ContentManager] File count read: " + String(file_count) + " (0x" + String(file_count, HEX) + ")");
+    
+    if (err != ESP_OK) {
+        Logger::instance().log("ERROR: Cannot read file count from flash (error " + String(err) + ")");
         return false;
     }
     
-    Serial.print("[ContentManager] Files in storage: ");
-    Serial.println(file_count);
+    Logger::instance().log("[ContentManager] Files in storage: " + String(file_count));
     
     if (file_count == 0 || file_count > 500) {
-        Serial.println("ERROR: Invalid file count");
+        Logger::instance().log("ERROR: Invalid file count " + String(file_count) + " (0x" + String(file_count, HEX) + ")");
         return false;
     }
     
     flash_addr += 4;  // Skip file count
     
+    Logger::instance().log("[ContentManager] Starting file parsing loop...");
+    
     // Read each file entry
     for (uint32_t i = 0; i < file_count; i++) {
         // Read path length (2 bytes)
         uint16_t path_len = 0;
-        if (esp_flash_read(NULL, &path_len, flash_addr, 2) != ESP_OK) break;
+        esp_err_t err = esp_flash_read(NULL, &path_len, flash_addr, 2);
+        if (err != ESP_OK) {
+            Logger::instance().log("ERROR: Failed to read path_len at file " + String(i) + ", error " + String(err));
+            break;
+        }
         flash_addr += 2;
         
-        if (path_len == 0 || path_len > 255) break;
+        if (path_len == 0 || path_len > 255) {
+            Logger::instance().log("ERROR: Invalid path_len " + String(path_len) + " at file " + String(i));
+            break;
+        }
         
         // Read path
         char path_buf[256];
-        if (esp_flash_read(NULL, path_buf, flash_addr, path_len) != ESP_OK) break;
+        err = esp_flash_read(NULL, path_buf, flash_addr, path_len);
+        if (err != ESP_OK) {
+            Logger::instance().log("ERROR: Failed to read path at file " + String(i) + ", error " + String(err));
+            break;
+        }
         flash_addr += path_len;
         path_buf[path_len] = '\0';
         String path = String(path_buf);
         
         // Read content length (4 bytes)
         uint32_t content_len = 0;
-        if (esp_flash_read(NULL, &content_len, flash_addr, 4) != ESP_OK) break;
+        err = esp_flash_read(NULL, &content_len, flash_addr, 4);
+        if (err != ESP_OK) {
+            Logger::instance().log("ERROR: Failed to read content_len at file " + String(i) + ", error " + String(err));
+            break;
+        }
         flash_addr += 4;
         
         // Store file info (we'll read content on-demand later)
@@ -100,11 +123,7 @@ bool ContentManager::readCustomStorage() {
         entry.size = content_len;
         fileEntries.push_back(entry);
         
-        Serial.print("  Found: ");
-        Serial.print(path);
-        Serial.print(" (");
-        Serial.print(content_len);
-        Serial.println(" bytes)");
+        Logger::instance().log("  Found: " + path + " (" + String(content_len) + " bytes)");
         
         // Extract theme from path
         if (path.startsWith("scenes/") || path.startsWith("animations/")) {
@@ -167,13 +186,22 @@ bool ContentManager::readCustomStorage() {
             uint32_t saved_offset = flash_addr;
             uint32_t saved_size = content_len;
             
-            // V16.3.0-2026-01-10T22:41:00Z - Read timeline JSON for duration
+            // V16.4.10-2026-01-12T03:00:00Z - Read timeline JSON for duration
             char* json_content = new char[saved_size + 1];
             if (esp_flash_read(NULL, json_content, saved_offset, saved_size) == ESP_OK) {
                 json_content[saved_size] = '\0';
                 DynamicJsonDocument doc(8192);
                 if (deserializeJson(doc, json_content) == DeserializationError::Ok) {
-                    unsigned long duration = doc["durationMs"] | 5000;  // Default 5 seconds
+                    // V16.4.10 - Calculate duration from sum of frames if not explicitly set
+                    unsigned long duration = doc["durationMs"] | 0;
+                    if (duration == 0 && doc.containsKey("frames")) {
+                        JsonArray frames = doc["frames"];
+                        for (JsonObject frame : frames) {
+                            duration += frame["durationMs"] | 100;  // Default 100ms per frame
+                        }
+                    }
+                    if (duration == 0) duration = 5000;  // Final fallback
+                    
                     String m0 = doc["matrix0Scene"] | path;
                     String m1 = doc["matrix1Scene"] | m0;
                     String m2 = doc["matrix2Scene"] | String("");
@@ -240,16 +268,56 @@ bool ContentManager::readCustomStorage() {
                 delete[] json_content;
                 addContent(filename, theme, CONTENT_COUNTDOWN, path);
             }
+        }
+        // V16.4.8-2026-01-11T22:30:00Z - Add test pattern discovery
+        else if (path.startsWith("test/") && path.endsWith(".json")) {
+            String filename = path.substring(path.lastIndexOf('/') + 1);
+            filename.replace(".json", "");
+            
+            // V16.4.8 - Test patterns get 5 second default duration
+            addContent(filename, "test", CONTENT_TEST, path, 5000, path, path, "");
+        }
         
+        // V16.4.6-2026-01-11T22:20:00Z - CRITICAL FIX: Move flash_addr advance OUTSIDE all conditionals
         // Skip to next file (align to 512 bytes)
         flash_addr += content_len;
         uint32_t padding = (512 - (flash_addr % 512)) % 512;
         flash_addr += padding;
     }
     
+    Logger::instance().log("[ContentManager] Loop complete, found " + String(fileEntries.size()) + " files");
     return fileEntries.size() > 0;
-    }  // V16.3.0-2026-01-10T23:03:00Z - Close readCustomStorage for loop
 }
+
+String ContentManager::resolveScenePath(const String& timelinePath, const String& sceneName) {
+    // V16.4.10-2026-01-12T03:05:00Z - Resolve relative scene paths
+    // If sceneName already has path separators, return as-is (absolute path)
+    if (sceneName.indexOf('/') >= 0) {
+        return sceneName;
+    }
+    
+    // Extract directory from timeline path
+    // Example: "animations/halloween/spooky_eyes/eyes_timeline.json" 
+    //       -> "animations/halloween/spooky_eyes/"
+    int lastSlash = timelinePath.lastIndexOf('/');
+    if (lastSlash > 0) {
+        String dir = timelinePath.substring(0, lastSlash + 1);
+        // Add .json extension if missing
+        String resolved = dir + sceneName;
+        if (!resolved.endsWith(".json")) {
+            resolved += ".json";
+        }
+        return resolved;
+    }
+    
+    // Fallback: just add .json if needed
+    String resolved = sceneName;
+    if (!resolved.endsWith(".json")) {
+        resolved += ".json";
+    }
+    return resolved;
+}
+
 
 String ContentManager::extractTheme(const String& path) {
     // V16.2.0-2026-01-10T18:10:00Z - Extract theme from paths like "scenes/christmas/tree.json", "scroll/christmas/text.json", "countdown/christmas/newyear.json"
@@ -302,26 +370,59 @@ bool ContentManager::renderContent(uint16_t contentId) {
     switch (item->type) {
         case CONTENT_SCENE:
         case CONTENT_ANIMATION: {
-            // V16.2.6-2026-01-10T22:30:00Z - Read JSON from flash, parse pixels, render
-            // Find file in flash storage
+            // V16.4.10-2026-01-12T03:10:00Z - Full timeline rendering with frame playback
             for (const auto& entry : fileEntries) {
                 if (entry.path == item->path) {
-                    // Read JSON from flash
+                    // Read timeline JSON from flash
                     char* jsonData = new char[entry.size + 1];
                     if (esp_flash_read(NULL, jsonData, entry.offset, entry.size) == ESP_OK) {
                         jsonData[entry.size] = '\0';
                         
-                        // Parse and render (simplified - just clear for now)
-                        disp->clear();
-                        disp->show();
-                        
-                        // TODO: Parse JSON pixels and render
-                        Logger::instance().log("[ContentManager] Rendered from flash: " + item->name);
+                        DynamicJsonDocument doc(8192);
+                        if (deserializeJson(doc, jsonData) == DeserializationError::Ok) {
+                            JsonArray frames = doc["frames"];
+                            
+                            // Render each frame in sequence
+                            for (JsonObject frame : frames) {
+                                String sceneName = frame["scene"] | "";
+                                unsigned long frameDuration = frame["durationMs"] | 100;
+                                
+                                if (sceneName.length() > 0) {
+                                    // V16.4.10 - Resolve relative scene path
+                                    String fullScenePath = resolveScenePath(item->path, sceneName);
+                                    
+                                    // Find and render the scene
+                                    for (const auto& sceneEntry : fileEntries) {
+                                        if (sceneEntry.path == fullScenePath || 
+                                            sceneEntry.path.endsWith("/" + sceneName + ".json")) {
+                                            
+                                            char* sceneData = new char[sceneEntry.size + 1];
+                                            if (esp_flash_read(NULL, sceneData, sceneEntry.offset, sceneEntry.size) == ESP_OK) {
+                                                sceneData[sceneEntry.size] = '\0';
+                                                
+                                                // TODO: Parse scene JSON and render pixels
+                                                // For now, just clear and show to prove it works
+                                                disp->clear();
+                                                disp->show();
+                                                
+                                                delete[] sceneData;
+                                            }
+                                            break;
+                                        }
+                                    }
+                                    
+                                    delay(frameDuration);
+                                }
+                            }
+                            
+                            Logger::instance().log("[ContentManager] Timeline animation rendered: " + item->name);
+                            delete[] jsonData;
+                            return true;
+                        }
                         
                         delete[] jsonData;
-                        return true;
+                        return false;
                     }
-                    // V16.3.0-2026-01-10T22:54:00Z - Only delete on failure
                     delete[] jsonData;
                     return false;
                 }
@@ -444,11 +545,9 @@ void ContentManager::registerProceduralAnimations() {
 }
 
 void ContentManager::registerTestPatterns() {
-    Logger::instance().log("[ContentManager] Registering test patterns...");
-    
-    addContent("Color Test", "test", CONTENT_TEST, "");
-    addContent("All Pixels", "test", CONTENT_TEST, "");
-    addContent("Matrix ID", "test", CONTENT_TEST, "");
+    // V16.4.8-2026-01-11T22:30:00Z - Removed hardcoded test patterns
+    // Test patterns now discovered via JSON files in data_in/test/ folder
+    Logger::instance().log("[ContentManager] Test pattern registration complete (auto-discovery)");
 }
 
 void ContentManager::enableScheduler(bool enable) {

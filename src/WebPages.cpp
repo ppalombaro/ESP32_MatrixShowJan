@@ -62,10 +62,10 @@ String WebPages::buildNavigation() {
 
 // Page 1: Control/Preview Page
 String WebPages::buildControlPage(ContentManager* content) {
-    String html = htmlHeader("Matrix Control");
+    String html = htmlHeader("Palombaro LED Display Control");
     html += buildNavigation();
     
-    html += "<h1>Matrix Control</h1>";
+    html += "<h1>Palombaro LED Display Control</h1>";
     
     // Display controls
     html += "<div class='section'>";
@@ -75,8 +75,7 @@ String WebPages::buildControlPage(ContentManager* content) {
     html += "<input type='range' id='brightness' min='1' max='255' value='20' style='width:200px;' oninput='updateBrightness(this.value)'>";
     html += "</div>";
     html += "<br>";
-    html += "<button class='control-btn danger-btn' onclick='clearDisplay()'>?????EUR? Clear Display</button>";
-    html += "<button class='control-btn' onclick='testPattern()'>???,?'?+ Test Pattern</button>";
+    html += "<button class='control-btn danger-btn' onclick='clearDisplay()'>Clear Display</button>";
     html += "</div>";
     
     // Get all content grouped by theme
@@ -102,7 +101,9 @@ String WebPages::buildControlPage(ContentManager* content) {
                 case CONTENT_SCENE: html += "Scene"; break;
                 case CONTENT_ANIMATION: html += "Animation"; break;
                 case CONTENT_SCROLL: html += "Scroll"; break;
+                case CONTENT_COUNTDOWN: html += "Countdown"; break;  // V16.4.8-2026-01-11T22:30:00Z
                 case CONTENT_PROCEDURAL: html += "Procedural"; break;
+                case CONTENT_TEST: html += "Test"; break;  // V16.4.8-2026-01-11T22:30:00Z
             }
             
             html += "</p>";
@@ -113,9 +114,9 @@ String WebPages::buildControlPage(ContentManager* content) {
         html += "</div></div>";
     }
     
-    // JavaScript - V16.2.1-2026-01-10T18:52:00Z - Removed annoying alert() popups
+    // JavaScript - V16.4.8-2026-01-11T22:30:00Z - Clear display before preview
     html += "<script>";
-    html += "function preview(id){fetch('/api/render?id='+id);}";
+    html += "function preview(id){fetch('/api/clear').then(()=>fetch('/api/render?id='+id));}";  // V16.4.8 - Clear first
     html += "function clearDisplay(){fetch('/api/clear');}";
     html += "function testPattern(){fetch('/api/test');}";
     html += "function updateBrightness(val){";
@@ -139,7 +140,7 @@ String WebPages::buildSchedulePage(ContentManager* content) {
     String html = htmlHeader("Schedule Config");
     html += buildNavigation();
     
-    html += "<h1>???,?EURoe?EUR? Random Schedule Configuration</h1>";
+    html += "<h1>Random Schedule Configuration</h1>";
     
     // Random mode status
     html += "<div class='section'>";
@@ -208,7 +209,7 @@ String WebPages::buildSchedulePage(ContentManager* content) {
         html += "</div>";
     }
     
-    html += "<button class='control-btn' onclick='saveEligible()' style='margin-top:20px;'>???,?EUR(TM)? 3/4  Save Eligible Content</button>";
+    html += "<button class='control-btn' onclick='saveEligible()' style='margin-top:20px;'Save Eligible Content</button>";
     html += "</div>";
     
     // JavaScript
@@ -238,7 +239,7 @@ String WebPages::buildTimesPage() {
     String html = htmlHeader("Schedule Times");
     html += buildNavigation();
     
-    html += "<h1>?????? Schedule Times</h1>";
+    html += "<h1>Schedule Times</h1>";
     
     html += "<div class='section'>";
     html += "<h2>Daily Schedule</h2>";
@@ -254,7 +255,7 @@ String WebPages::buildTimesPage() {
     html += "<input type='time' id='endTime' value='22:00'>";
     html += "</div>";
     
-    html += "<button class='control-btn' onclick='saveTimes()'>???,?EUR(TM)? 3/4  Save Schedule Times</button>";
+    html += "<button class='control-btn' onclick='saveTimes()'>Save Schedule Times</button>";
     html += "</div>";
     
     html += "<div class='section'>";
@@ -283,11 +284,11 @@ String WebPages::buildLogsPage() {
     String html = htmlHeader("System Logs");
     html += buildNavigation();
     
-    html += "<h1>???,?EURoe?EUR? System Logs</h1>";
+    html += "<h1>System Logs</h1>";
     
     html += "<div class='section'>";
     html += "<h2>Recent Log Entries</h2>";
-    html += "<button class='control-btn' onclick='location.reload()'>???,?EUR??EUR? Refresh</button>";
+    html += "<button class='control-btn' onclick='location.reload()'>Refresh</button>";
     html += "<button class='control-btn danger-btn' onclick='clearLogs()'>Clear Logs</button>";
     
     html += "<div style='margin-top:20px;'>";

@@ -80,7 +80,7 @@ private:
     
     bool schedulerEnabled = false;
     bool randomModeEnabled = false;
-    unsigned long randomIntervalMs = 10000;
+    unsigned long randomIntervalMs = 4000;  // V16.4.8-2026-01-11T22:30:00Z - Default 4 seconds
     unsigned long lastRandomChange = 0;
     String randomThemeFilter = "";
     
@@ -93,6 +93,7 @@ private:
     // Storage reading
     bool readCustomStorage();
     String extractTheme(const String& path);
+    String resolveScenePath(const String& timelinePath, const String& sceneName);  // V16.4.10-2026-01-12T03:05:00Z
     
     // Random mode
     void updateRandomMode();
