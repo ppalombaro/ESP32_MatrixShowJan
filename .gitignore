@@ -12,4 +12,12 @@ build/
 *.log
 .DS_Store
 /newfiles/*
-/doco1/*
+
+# Wi-Fi credentials - copy src/Secrets.h.example to src/Secrets.h
+src/Secrets.h
+
+# Content pipeline: data_in/ is the ONLY source of truth (tracked).
+# data/ is transient minify staging created+deleted by json_datain_2_FFAT.bat.
+# data_min/ is a dead V15-era folder — do not recreate.
+/data/
+/data_min/
