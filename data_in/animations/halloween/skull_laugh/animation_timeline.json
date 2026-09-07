@@ -1,0 +1,1 @@
+{"displayName":"Skull Laughing","version":"16.4","theme":"halloween","loop":true,"durationMs":480,"scene":"animations/halloween/skull_laugh/animation_timeline.json","frames":[{"scene":"skull_laugh_f00","durationMs":240},{"scene":"skull_laugh_f01","durationMs":240}],"metadata":{"frameCount":2,"thinnedFrom":8}}

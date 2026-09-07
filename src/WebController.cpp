@@ -46,7 +46,7 @@ void WebController::setupRoutes() {
     });
     
     server.on("/times", HTTP_GET, [this]() {
-        server.send(200, "text/html", WebPages::buildTimesPage());
+        server.send(200, "text/html", WebPages::buildTimesPage(content));
     });
     
     server.on("/logs", HTTP_GET, [this]() {

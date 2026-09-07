@@ -7,6 +7,7 @@
 #include "MatrixDisplay.h"
 #include "ContentManager.h"
 #include "Logger.h"
+#include "Config.h"
 
 ThemeManager::ThemeManager() {}
 
@@ -32,39 +33,48 @@ void ThemeManager::renderContent(uint16_t contentId) {
     }
 }
 
-// V16.2.2-2026-01-10T19:00:00Z - Color accessors for themed content
+// V16.4.13 - Color accessors keyed on the THEME_* constants, using the
+// palette macros from Config.h. Off / unknown -> dim white (keeps text visible).
 CRGB ThemeManager::getColor1() const {
-    // Theme-specific primary colors
     switch (currentTheme) {
-        case 0: return CRGB::Red;      // Christmas
-        case 1: return CRGB::Orange;   // Halloween
-        case 2: return CRGB::Orange;   // Thanksgiving
-        case 3: return CRGB::Gold;     // New Year
-        case 4: return CRGB::Red;      // OSU
-        default: return CRGB::White;
+        case THEME_CHRISTMAS:    return CHRISTMAS_COLOR_1;
+        case THEME_HALLOWEEN:    return HALLOWEEN_COLOR_1;
+        case THEME_THANKSGIVING: return THANKSGIVING_COLOR_1;
+        case THEME_NEWYEAR:      return NEWYEAR_COLOR_1;
+        case THEME_OSU:          return OSU_COLOR_1;
+        default:                 return CRGB(40, 40, 40);
     }
 }
 
 CRGB ThemeManager::getColor2() const {
-    // Theme-specific secondary colors
     switch (currentTheme) {
-        case 0: return CRGB::Green;    // Christmas
-        case 1: return CRGB::Purple;   // Halloween
-        case 2: return CRGB::Brown;    // Thanksgiving
-        case 3: return CRGB::Silver;   // New Year
-        case 4: return CRGB::Grey;     // OSU
-        default: return CRGB::Blue;
+        case THEME_CHRISTMAS:    return CHRISTMAS_COLOR_2;
+        case THEME_HALLOWEEN:    return HALLOWEEN_COLOR_2;
+        case THEME_THANKSGIVING: return THANKSGIVING_COLOR_2;
+        case THEME_NEWYEAR:      return NEWYEAR_COLOR_2;
+        case THEME_OSU:          return OSU_COLOR_2;
+        default:                 return CRGB(40, 40, 40);
     }
 }
 
 CRGB ThemeManager::getColor3() const {
-    // Theme-specific accent colors
     switch (currentTheme) {
-        case 0: return CRGB::White;    // Christmas
-        case 1: return CRGB::Green;    // Halloween
-        case 2: return CRGB::Yellow;   // Thanksgiving
-        case 3: return CRGB::Blue;     // New Year
-        case 4: return CRGB::White;    // OSU
-        default: return CRGB::Red;
+        case THEME_CHRISTMAS:    return CHRISTMAS_COLOR_3;
+        case THEME_HALLOWEEN:    return HALLOWEEN_COLOR_3;
+        case THEME_THANKSGIVING: return THANKSGIVING_COLOR_3;
+        case THEME_NEWYEAR:      return NEWYEAR_COLOR_3;
+        case THEME_OSU:          return OSU_COLOR_3;
+        default:                 return CRGB(60, 60, 60);
     }
+}
+
+uint8_t ThemeManager::themeNameToId(const String& name) {
+    String n = name;
+    n.toLowerCase();
+    if (n == "christmas")    return THEME_CHRISTMAS;
+    if (n == "halloween")    return THEME_HALLOWEEN;
+    if (n == "thanksgiving") return THEME_THANKSGIVING;
+    if (n == "newyear" || n == "new_year" || n == "new-year") return THEME_NEWYEAR;
+    if (n == "osu")          return THEME_OSU;
+    return THEME_OFF;
 }

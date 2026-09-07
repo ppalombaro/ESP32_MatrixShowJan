@@ -13,10 +13,17 @@
 
 #include <FastLED.h>
 
+// ================= FIRMWARE VERSION ===================
+#define FW_VERSION "V16.4.13"
+
 // ================= WIFI CONFIGURATION =================
-#define WIFI_SSID     "palombaro"
-#define WIFI_PASSWORD "boobug00"
-#define HOSTNAME      "palombaro-matrix"
+// Credentials live in src/Secrets.h (git-ignored). Copy src/Secrets.h.example
+// to src/Secrets.h and fill in WIFI_SSID / WIFI_PASSWORD / HOSTNAME.
+#if __has_include("Secrets.h")
+  #include "Secrets.h"
+#else
+  #error "Missing src/Secrets.h - copy src/Secrets.h.example to src/Secrets.h and set your Wi-Fi credentials"
+#endif
 
 // ================= FEATURE FLAGS ======================
 #define ENABLE_MEGAMATRIX false   // Matrix 2 disabled (future)

@@ -137,9 +137,8 @@ echo ========================================
 echo.
 echo Next steps:
 echo 1. Press ESP32 reset button
-echo 2. Watch serial monitor for:
-echo    Files in storage: 120
-echo    Discovered 5 themes
+echo 2. Watch serial monitor for "Files in storage: N" - N should match
+echo    the file count printed by this script above.
 echo.
 pause
 endlocal

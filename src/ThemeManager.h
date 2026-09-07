@@ -20,6 +20,9 @@ public:
 
     void setTheme(uint8_t theme);
     uint8_t getCurrentTheme() const { return currentTheme; }
+
+    // V16.4.13 - map a content theme folder name to a THEME_* id
+    static uint8_t themeNameToId(const String& name);
     
     void renderContent(uint16_t contentId); // V16.1.2
     

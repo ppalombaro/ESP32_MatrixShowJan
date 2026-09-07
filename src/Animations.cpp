@@ -269,4 +269,26 @@ void sparklingStars(MatrixDisplay* disp) {
     disp->show();
 }
 
+// V16.4.12 - Color Wave: horizontal rainbow sweep across both windows
+void colorWave(MatrixDisplay* disp) {
+    static unsigned long lastUpdate = 0;
+    static uint8_t hueOffset = 0;
+
+    unsigned long now = millis();
+    if (now - lastUpdate < 40) return;
+    lastUpdate = now;
+
+    for (int m = 0; m < 2; m++) {
+        for (int x = 0; x < COLS; x++) {
+            CRGB c = CHSV(hueOffset + (m * COLS + x) * 4, 255, 255);
+            for (int y = 0; y < ROWS; y++) {
+                disp->setPixel(m, x, y, c);
+            }
+        }
+    }
+
+    hueOffset += 3;
+    disp->show();
+}
+
 } // namespace Animations

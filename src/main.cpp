@@ -1,31 +1,27 @@
-/* ESP32_MatrixShow.ino
-   Main program entry point
-   VERSION: V16.1.2-2026-01-08T15:00:00Z - Content auto-discovery architecture
+/* ESP32_MatrixShow - Main program entry point
+   VERSION: V16.4.13-2026-09-07 - DST-aware SNTP (configTzTime), NTPClient removed
 */
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
 #include <FastLED.h>
-#include <Preferences.h>     // ← ADD THIS!
+#include <Preferences.h>
+#include <time.h>
 #include "Config.h"
 #include "MatrixDisplay.h"
 #include "Logger.h"
 #include "ThemeManager.h"
 #include "ContentManager.h"
-#include "Scheduler.h"
 #include "WebController.h"
-#include "Scroll.h"          // ← ADD THIS
-#include "Countdown.h"       // ← ADD THIS
+
+// POSIX TZ for US Eastern with automatic DST (EDT Mar 2nd Sun - Nov 1st Sun)
+#define TZ_STRING "EST5EDT,M3.2.0/2,M11.1.0/2"
 
 // Global objects
 Preferences preferences;
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000, 60000);
 
 MatrixDisplay display;
-ThemeManager themeManager;  // V16.2.5-2026-01-10T22:20:00Z - Must be before ContentManager
+ThemeManager themeManager;  // Must be constructed before ContentManager uses it
 ContentManager content;
 WebController web;
 
@@ -34,7 +30,7 @@ void setup() {
     delay(1000);
 
     Logger::instance().log("=================================");
-    Logger::instance().log("ESP32 Matrix Show V16.1.2");
+    Logger::instance().log("ESP32 Matrix Show " FW_VERSION);
     Logger::instance().log("Content Auto-Discovery System");
     Logger::instance().log("=================================");
 
@@ -42,15 +38,16 @@ void setup() {
     display.begin();
     Logger::instance().log("[SETUP] Display initialized");
 
-    // V16.1.2 - Discover all content from filesystem
+    // Discover all content from the custom flash blob
     content.begin(&display);
     Logger::instance().log("[SETUP] Content discovery complete");
 
     // Initialize WiFi
     WiFi.mode(WIFI_STA);
+    WiFi.setHostname(HOSTNAME);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     Logger::instance().log("[SETUP] Connecting to WiFi...");
-    
+
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 20) {
         delay(500);
@@ -61,7 +58,9 @@ void setup() {
 
     if (WiFi.status() == WL_CONNECTED) {
         Logger::instance().log("[SETUP] WiFi connected: " + WiFi.localIP().toString());
-        timeClient.begin();
+        // Start SNTP + local timezone (DST-aware). getLocalTime() is used elsewhere.
+        configTzTime(TZ_STRING, "pool.ntp.org", "time.nist.gov");
+        Logger::instance().log("[SETUP] SNTP started (TZ " TZ_STRING ")");
     } else {
         Logger::instance().log("[SETUP] WiFi connection FAILED - continuing offline");
     }
@@ -79,19 +78,8 @@ void setup() {
 }
 
 void loop() {
-    // V16.2.5-2026-01-10T22:06:00Z - Removed watchdog reset (not needed)
-    
-    // Update NTP time
-    if (WiFi.status() == WL_CONNECTED) {
-        timeClient.update();
-    }
-
-    // Handle web requests
     web.handle();
-    
-    // Update theme/content system
     themeManager.update();
     content.update();
-
     delay(10);
 }

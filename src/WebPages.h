@@ -14,7 +14,7 @@ public:
     static String buildRootPage();
     static String buildControlPage(ContentManager* content);
     static String buildSchedulePage(ContentManager* content);
-    static String buildTimesPage();
+    static String buildTimesPage(ContentManager* content);
     static String buildLogsPage();
     static String buildDiscoveryPage(ContentManager* content);
 

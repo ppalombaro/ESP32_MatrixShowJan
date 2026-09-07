@@ -15,11 +15,10 @@
 
 class MatrixDisplay;
 class ThemeManager;
-class NTPClient;
 
 class Countdown {
 public:
-    Countdown(MatrixDisplay* display, ThemeManager* themeMgr, NTPClient* ntp);
+    Countdown(MatrixDisplay* display, ThemeManager* themeMgr);
     
     // Load countdown configuration from JSON
     bool loadFromJSON(const String& jsonPath);
@@ -34,8 +33,7 @@ public:
 private:
     MatrixDisplay* disp;
     ThemeManager* themes;
-    NTPClient* ntpClient;
-    
+
     time_t targetTime;
     unsigned long lastUpdate;
     bool flashState;

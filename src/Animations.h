@@ -27,4 +27,5 @@ namespace Animations {
     void snowfallGentle(MatrixDisplay* disp);
     void snowfallHeavy(MatrixDisplay* disp);
     void sparklingStars(MatrixDisplay* disp);
+    void colorWave(MatrixDisplay* disp);   // V16.4.12 - OSU-registered procedural
 }

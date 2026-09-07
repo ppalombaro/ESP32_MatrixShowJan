@@ -1,5 +1,5 @@
 # VS Code + PlatformIO - Quick Reference
-**V16.4.0-2026-01-11T21:30:00Z**
+**V16.4.13.** Full setup: [`SETUP_GUIDE.md`](SETUP_GUIDE.md) · build/flash detail: [`doco/InstallationGuide.md`](doco/InstallationGuide.md)
 
 ## 🎯 DAILY WORKFLOW
 
@@ -134,6 +134,7 @@ tools/FFAT/        ← Python scripts
 
 - [ ] VS Code installed
 - [ ] PlatformIO extension installed
+- [ ] `src/Secrets.h` created from `src/Secrets.h.example` (Wi-Fi creds)
 - [ ] Project opens without errors
 - [ ] First build succeeds (Ctrl+Alt+B)
 - [ ] Upload works (Ctrl+Alt+U)

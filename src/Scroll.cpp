@@ -132,6 +132,7 @@ bool Scroll::loadFromJSON(const String& jsonPath) {
                 // Extract configuration
                 if (doc.containsKey("text")) {
                     scrollText = doc["text"].as<String>();
+                    scrollText.toUpperCase();  // V16.4.12 - font is uppercase-only (ASCII 32-90)
                 }
                 if (doc.containsKey("speed")) {
                     scrollSpeed = doc["speed"];
@@ -155,7 +156,7 @@ bool Scroll::loadFromJSON(const String& jsonPath) {
 }
 
 void Scroll::begin() {
-    scrollPos = 50;  // V16.2.0-2026-01-10T18:00:00Z - Start off right edge (50 pixels = 2 matrices)
+    scrollPos = COLS * 2;  // V16.4.12 - Start off the right edge (two 20-wide windows)
     currentColorIndex = 0;
     repeatCount = 0;
     lastUpdate = millis();
@@ -180,15 +181,15 @@ void Scroll::update() {
         int charPos = scrollPos + (i * charSpacing);
         
         // Only draw if visible on either matrix
-        if (charPos >= -charSpacing && charPos < 50) {
+        if (charPos >= -charSpacing && charPos < COLS * 2) {
             drawCharacter(c, charPos, color);
         }
     }
-    
+
     // Move position
     scrollPos--;
     if (scrollPos < -totalWidth) {
-        scrollPos = 50;  // Reset to right edge
+        scrollPos = COLS * 2;  // Reset to right edge
         repeatCount++;
         currentColorIndex = (currentColorIndex + 1) % 3;  // V16.2.0-2026-01-10T18:00:00Z - Cycle colors
     }
@@ -210,22 +211,23 @@ void Scroll::drawCharacter(char c, int globalX, CRGB color) {
         int x = globalX + col;
         
         // Determine which matrix and local position
+        // globalX 0..COLS-1 = right window (matrix 0), COLS..2*COLS-1 = left window (matrix 1)
         int matrix = 0;
         int localX = x;
-        if (x >= 25) {
+        if (x >= COLS) {
             matrix = 1;
-            localX = x - 25;
+            localX = x - COLS;
         }
-        
+
         // Only draw if in valid range
-        if (x >= 0 && x < 50 && localX >= 0 && localX < 25) {
+        if (x >= 0 && x < COLS * 2 && localX >= 0 && localX < COLS) {
             uint8_t columnData = FONT_5X7[fontIndex][col];
-            
-            // Draw vertical column
+
+            // Draw vertical column, vertically centred
             for (int row = 0; row < 7; row++) {
                 if (columnData & (1 << row)) {
-                    int y = 9 + row;  // Center vertically (rows 9-15)
-                    if (y < 20) {
+                    int y = (ROWS - 7) / 2 + row;
+                    if (y >= 0 && y < ROWS) {
                         disp->setPixel(matrix, localX, y, color);
                     }
                 }

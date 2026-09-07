@@ -8,7 +8,7 @@
 #include "ThemeManager.h"
 #include "Logger.h"
 #include <ArduinoJson.h>
-#include <NTPClient.h>
+#include <time.h>
 #include "esp_partition.h"
 #include "esp_spi_flash.h"
 
@@ -28,8 +28,8 @@ const uint8_t Countdown::DIGIT_3X5[][5] = {
   {0b111, 0b101, 0b111, 0b001, 0b111}  // 9
 };
 
-Countdown::Countdown(MatrixDisplay* display, ThemeManager* themeMgr, NTPClient* ntp)
-    : disp(display), themes(themeMgr), ntpClient(ntp), targetTime(0), 
+Countdown::Countdown(MatrixDisplay* display, ThemeManager* themeMgr)
+    : disp(display), themes(themeMgr), targetTime(0),
       lastUpdate(0), flashState(false), lastFlash(0) {
 }
 
@@ -126,16 +126,13 @@ void Countdown::update() {
     if (now - lastUpdate < 1000) return;  // V16.2.0-2026-01-10T18:05:00Z - Update every second
     lastUpdate = now;
     
-    disp->clear();
-    
-    // V16.2.0-2026-01-10T18:05:00Z - Get current time from NTP
-    ntpClient->update();
-    time_t currentTime = ntpClient->getEpochTime();
-    
-    // Fallback if NTP not synced
+    // V16.4.13 - system clock (SNTP via configTzTime in main.cpp)
+    time_t currentTime = time(nullptr);
     if (currentTime < 100000) {
-        currentTime = millis() / 1000;
+        return;  // clock not synced yet - don't draw a bogus countdown
     }
+
+    disp->clear();
     
     // Calculate time difference
     long diff = targetTime - currentTime;
@@ -170,7 +167,7 @@ void Countdown::update() {
     const int GAP = 1;
     const int Y_START = 8;
     const int X_LEFT = GAP;
-    const int X_RIGHT = 12 + GAP;  // Adjusted for 25-pixel width
+    const int X_RIGHT = X_LEFT + BOX_WIDTH + GAP;  // V16.4.12 - fit two 9-wide boxes in a 20-wide window
     
     drawBox(0, X_LEFT, Y_START, 'M', minutes, isZero);
     drawBox(0, X_RIGHT, Y_START, 'S', seconds, isZero);
@@ -312,12 +309,11 @@ time_t Countdown::parseHumanDate(const String& dateStr) {
         timeinfo.tm_min = minute;
         timeinfo.tm_sec = second;
         
-        // Convert to Unix timestamp (assuming UTC)
-        time_t timestamp = mktime(&timeinfo);
-        
-        // mktime uses local time, but we want UTC, so adjust
-        // This is a simplified approach - for production use a proper UTC conversion
-        return timestamp;
+        // V16.4.13 - TZ is set (configTzTime), so mktime treats the fields as
+        // local wall-clock and returns the correct UTC epoch. targetDate in the
+        // JSON is therefore interpreted as local time, DST-aware.
+        timeinfo.tm_isdst = -1;
+        return mktime(&timeinfo);
     }
     
     Logger::instance().log("[Countdown] Invalid date format, expected: YYYY-MM-DD HH:MM:SS");

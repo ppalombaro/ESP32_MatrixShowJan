@@ -6,6 +6,14 @@
 #include "WebPages.h"
 #include "ContentManager.h"
 #include "Logger.h"
+#include "Config.h"
+
+// V16.4.13 - zero-padded HH:MM
+static String hhmm(uint8_t h, uint8_t m) {
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%02u:%02u", h, m);
+    return String(buf);
+}
 
 // Common HTML header with styling
 String WebPages::htmlHeader(const String& title) {
@@ -56,6 +64,7 @@ String WebPages::buildNavigation() {
     nav += "<a href='/times'>Schedule Times</a>";
     nav += "<a href='/logs'>Logs</a>";
     nav += "<a href='/discovery'>Discovery</a>";
+    nav += "<span style='color:#666;float:right;'>" FW_VERSION "</span>";
     nav += "</div>";
     return nav;
 }
@@ -76,6 +85,8 @@ String WebPages::buildControlPage(ContentManager* content) {
     html += "</div>";
     html += "<br>";
     html += "<button class='control-btn danger-btn' onclick='clearDisplay()'>Clear Display</button>";
+    html += "<button class='control-btn' onclick='testPattern()'>Test Pattern</button>";
+    html += "<div class='status' id='nowPlaying' style='margin-top:15px;'>Now playing: --</div>";
     html += "</div>";
     
     // Get all content grouped by theme
@@ -116,18 +127,27 @@ String WebPages::buildControlPage(ContentManager* content) {
     
     // JavaScript - V16.4.8-2026-01-11T22:30:00Z - Clear display before preview
     html += "<script>";
-    html += "function preview(id){fetch('/api/clear').then(()=>fetch('/api/render?id='+id));}";  // V16.4.8 - Clear first
+    html += "function preview(id){fetch('/api/clear').then(()=>fetch('/api/render?id='+id));}";
     html += "function clearDisplay(){fetch('/api/clear');}";
     html += "function testPattern(){fetch('/api/test');}";
     html += "function updateBrightness(val){";
     html += "  document.getElementById('brightnessValue').innerText=val;";
     html += "  fetch('/api/brightness?value='+val);";
     html += "}";
+    html += "function pollStatus(){";
+    html += "  fetch('/api/status').then(r=>r.json()).then(s=>{";
+    html += "    var t=document.getElementById('nowPlaying');";
+    html += "    if(!s.scheduleActive){t.innerText='Schedule OFF (outside daily window)';return;}";
+    html += "    if(s.id<0){t.innerText='Idle';return;}";
+    html += "    t.innerText='Now playing: '+s.name+' ('+s.theme+' '+s.type+')';";
+    html += "  }).catch(()=>{});";
+    html += "}";
     html += "window.onload=function(){";
     html += "  fetch('/api/brightness/get').then(r=>r.text()).then(val=>{";
     html += "    document.getElementById('brightness').value=val;";
     html += "    document.getElementById('brightnessValue').innerText=val;";
     html += "  });";
+    html += "  pollStatus(); setInterval(pollStatus,2000);";
     html += "}";
     html += "</script>";
     
@@ -192,9 +212,10 @@ String WebPages::buildSchedulePage(ContentManager* content) {
     for (const auto& item : allContent) {
         // Skip test patterns
         if (item.type == CONTENT_TEST) continue;
-        
+
+        bool eligible = content->isEligible(item);
         html += "<div class='checkbox-item'>";
-        html += "<input type='checkbox' id='content_" + String(item.id) + "' checked>";
+        html += "<input type='checkbox' class='eligible' data-id='" + String(item.id) + "' id='content_" + String(item.id) + "'" + (eligible ? " checked" : "") + ">";
         html += "<label for='content_" + String(item.id) + "'>";
         html += "<strong>" + item.name + "</strong> [" + item.theme + "] ";
         
@@ -209,7 +230,8 @@ String WebPages::buildSchedulePage(ContentManager* content) {
         html += "</div>";
     }
     
-    html += "<button class='control-btn' onclick='saveEligible()' style='margin-top:20px;'Save Eligible Content</button>";
+    html += "<button class='control-btn' onclick='saveEligible()' style='margin-top:20px;'>Save Eligible Content</button>";
+    html += "<span id='eligMsg' style='margin-left:12px;color:#81C784;'></span>";
     html += "</div>";
     
     // JavaScript
@@ -226,7 +248,11 @@ String WebPages::buildSchedulePage(ContentManager* content) {
     html += "  fetch('/api/random/filter?theme='+theme);";
     html += "}";
     html += "function saveEligible(){";
-    html += "  console.log('Eligible content saved (TODO: implement persistence)');";
+    html += "  var ex=[];";
+    html += "  document.querySelectorAll('.eligible').forEach(function(c){if(!c.checked)ex.push(c.dataset.id);});";
+    html += "  fetch('/api/random/eligible?exclude='+ex.join(',')).then(r=>r.text()).then(t=>{";
+    html += "    document.getElementById('eligMsg').innerText=t+' ('+ex.length+' excluded)';";
+    html += "  });";
     html += "}";
     html += "</script>";
     
@@ -234,47 +260,51 @@ String WebPages::buildSchedulePage(ContentManager* content) {
     return html;
 }
 
-// Page 3: Schedule Times
-String WebPages::buildTimesPage() {
+// Page 3: Schedule Times (V16.4.13 - real, persisted)
+String WebPages::buildTimesPage(ContentManager* content) {
+    uint8_t sh, sm, eh, em;
+    content->getScheduleWindow(sh, sm, eh, em);
+    bool scheduleMode = content->isSchedulerEnabled();
+
     String html = htmlHeader("Schedule Times");
     html += buildNavigation();
-    
     html += "<h1>Schedule Times</h1>";
-    
+
     html += "<div class='section'>";
-    html += "<h2>Daily Schedule</h2>";
-    html += "<p style='color:#aaa;'>Configure when the random schedule should run each day:</p>";
-    
-    html += "<div class='form-group'>";
-    html += "<label>Start Time:</label>";
-    html += "<input type='time' id='startTime' value='17:00'>";
-    html += "</div>";
-    
-    html += "<div class='form-group'>";
-    html += "<label>End Time:</label>";
-    html += "<input type='time' id='endTime' value='22:00'>";
-    html += "</div>";
-    
-    html += "<button class='control-btn' onclick='saveTimes()'>Save Schedule Times</button>";
-    html += "</div>";
-    
-    html += "<div class='section'>";
-    html += "<h2>Current Schedule</h2>";
+    html += "<h2>Run Mode</h2>";
     html += "<div class='status'>";
-    html += "<p><strong>Active Hours:</strong> 17:00 - 22:00</p>";
-    html += "<p><strong>Status:</strong> Schedule times not yet implemented</p>";
+    html += "<p><strong>Mode:</strong> " + String(scheduleMode ? "SCHEDULE (daily window)" : "MANUAL (always on)") + "</p>";
+    html += "<p><strong>Right now:</strong> " + String(content->isScheduleActive() ? "display ON" : "display OFF (outside window)") + "</p>";
     html += "</div>";
+    if (scheduleMode) {
+        html += "<button class='control-btn danger-btn' onclick='setMode(false)'>Switch to MANUAL</button>";
+    } else {
+        html += "<button class='control-btn' onclick='setMode(true)'>Switch to SCHEDULE</button>";
+    }
     html += "</div>";
-    
-    // JavaScript
+
+    html += "<div class='section'>";
+    html += "<h2>Daily Window</h2>";
+    html += "<p style='color:#aaa;'>In SCHEDULE mode the display is dark outside this window. A window that ends before it starts wraps past midnight.</p>";
+    html += "<div class='form-group'><label>Start Time:</label>";
+    html += "<input type='time' id='startTime' value='" + hhmm(sh, sm) + "'></div>";
+    html += "<div class='form-group'><label>End Time:</label>";
+    html += "<input type='time' id='endTime' value='" + hhmm(eh, em) + "'></div>";
+    html += "<button class='control-btn' onclick='saveTimes()'>Save Window</button>";
+    html += "<span id='timesMsg' style='margin-left:12px;color:#81C784;'></span>";
+    html += "</div>";
+
     html += "<script>";
     html += "function saveTimes(){";
-    html += "  let start=document.getElementById('startTime').value;";
-    html += "  let end=document.getElementById('endTime').value;";
-    html += "  console.log('Schedule times: '+start+' to '+end+' (TODO: implement persistence)');";
+    html += "  var s=document.getElementById('startTime').value, e=document.getElementById('endTime').value;";
+    html += "  fetch('/api/schedule/times?start='+s+'&end='+e).then(r=>r.text()).then(t=>{";
+    html += "    document.getElementById('timesMsg').innerText=t;});";
+    html += "}";
+    html += "function setMode(sched){";
+    html += "  fetch('/api/scheduler/'+(sched?'enable':'disable')).then(()=>location.reload());";
     html += "}";
     html += "</script>";
-    
+
     html += htmlFooter();
     return html;
 }
@@ -322,7 +352,7 @@ String WebPages::buildDiscoveryPage(ContentManager* content) {
     String html = htmlHeader("Content Discovery");
     html += buildNavigation();
     
-    html += "<h1>???,?EUR??? Content Discovery</h1>";
+    html += "<h1>Content Discovery</h1>";
     
     html += "<div class='section'>";
     html += "<h2>Discovered Themes</h2>";

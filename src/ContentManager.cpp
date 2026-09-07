@@ -5,20 +5,26 @@
 #include "ContentManager.h"
 #include "MatrixDisplay.h"
 #include "Logger.h"
-#include "SceneData.h"
 #include "Animations.h"
 #include "Scroll.h"
 #include "Countdown.h"
 #include "ThemeManager.h"
+#include "Config.h"
 #include <vector>
+#include <time.h>
+#include <Preferences.h>
 #include "esp_partition.h"
 #include "esp_spi_flash.h"
-#include <NTPClient.h>
 #include <ArduinoJson.h>  // V16.3.0-2026-01-10T22:42:00Z
 
 // V16.2.5-2026-01-10T22:19:00Z - External references
 extern ThemeManager themeManager;
-extern NTPClient timeClient;
+
+// V16.4.13 - local wall-clock (TZ set via configTzTime in main.cpp).
+// Returns false until SNTP first syncs.
+static bool nowLocal(struct tm& out) {
+    return getLocalTime(&out, 50);
+}
 
 // Custom storage parameters
 #define DATA_PARTITION_OFFSET 0x290000
@@ -34,20 +40,27 @@ void ContentManager::begin(MatrixDisplay* display) {
     disp = display;
     contentRegistry.clear();
     discoveredThemes.clear();
-    
+
+    // V16.4.12 - Non-blocking scroll / countdown players (read straight from the blob)
+    if (!scroll)    scroll    = new Scroll(disp, &themeManager);
+    if (!countdown) countdown = new Countdown(disp, &themeManager);
+
     Logger::instance().log("[ContentManager] Reading custom flash storage...");
-    
+
     // Read file index from flash
     if (!readCustomStorage()) {
         Logger::instance().log("[ContentManager] Custom storage read FAILED");
         // Continue with procedural content only
     }
-    
+
     Logger::instance().log("[ContentManager] Discovered " + String(discoveredThemes.size()) + " themes");
-    
+
     registerProceduralAnimations();
-    registerTestPatterns();
-    
+
+    // V16.4.13 - restore persisted schedule + eligible-content state
+    loadScheduleFromNVS();
+    loadEligibleFromNVS();
+
     Logger::instance().log("[ContentManager] Total content: " + String(contentRegistry.size()));
 }
 
@@ -319,6 +332,60 @@ String ContentManager::resolveScenePath(const String& timelinePath, const String
 }
 
 
+const FileEntry* ContentManager::findFile(const String& path) const {
+    // V16.4.11 - Exact path match first, then bare-name suffix match.
+    for (const auto& e : fileEntries) {
+        if (e.path == path) return &e;
+    }
+    String suffix = path;
+    if (!suffix.endsWith(".json")) suffix += ".json";
+    if (suffix.indexOf('/') < 0) suffix = "/" + suffix;
+    for (const auto& e : fileEntries) {
+        if (e.path.endsWith(suffix)) return &e;
+    }
+    return nullptr;
+}
+
+bool ContentManager::drawSceneFile(int matrix, const String& sceneRef, const String& basePath) {
+    // V16.4.11 - Resolve a frame/scene reference, read its JSON from flash, and
+    // plot its pixels onto the given matrix. Empty ref or empty pixels = dark panel.
+    if (sceneRef.length() == 0) return false;
+
+    String resolved = resolveScenePath(basePath, sceneRef);
+    const FileEntry* fe = findFile(resolved);
+    if (!fe) fe = findFile(sceneRef);
+    if (!fe) {
+        Logger::instance().log("[ContentManager] Scene not found: " + resolved);
+        return false;
+    }
+
+    char* buf = new char[fe->size + 1];
+    bool ok = false;
+    if (esp_flash_read(NULL, buf, fe->offset, fe->size) == ESP_OK) {
+        buf[fe->size] = '\0';
+        // Sized for a worst-case full-panel scene (~500 pixels * ~80 B/slot).
+        DynamicJsonDocument doc(49152);
+        if (deserializeJson(doc, buf) == DeserializationError::Ok) {
+            int cx = doc["centerX"] | 10;
+            int cy = doc["centerY"] | 12;
+            JsonArray pixels = doc["pixels"];
+            for (JsonObject px : pixels) {
+                int x = px["x"] | 0;
+                int y = px["y"] | 0;
+                uint8_t r = px["r"] | 0;
+                uint8_t g = px["g"] | 0;
+                uint8_t b = px["b"] | 0;
+                disp->setPixel(matrix, cx + x, cy + y, CRGB(r, g, b));
+            }
+            ok = true;
+        } else {
+            Logger::instance().log("[ContentManager] Scene JSON parse error: " + resolved);
+        }
+    }
+    delete[] buf;
+    return ok;
+}
+
 String ContentManager::extractTheme(const String& path) {
     // V16.2.0-2026-01-10T18:10:00Z - Extract theme from paths like "scenes/christmas/tree.json", "scroll/christmas/text.json", "countdown/christmas/newyear.json"
     int slash1 = path.indexOf('/');
@@ -330,9 +397,33 @@ String ContentManager::extractTheme(const String& path) {
 }
 
 void ContentManager::update() {
+    // V16.4.13 - schedule gate: in SCHEDULE mode, suspend everything outside the
+    // daily window and blank the display.
+    if (runMode == RUN_MODE_SCHEDULE) {
+        bool inWindow = computeInWindow();
+        scheduleActive = inWindow;
+        if (!inWindow) {
+            if (!scheduleBlanked) {
+                stopPlayback();
+                scheduleBlanked = true;
+                Logger::instance().log("[Schedule] Outside window - display OFF");
+            }
+            return;
+        }
+        if (scheduleBlanked) {
+            scheduleBlanked = false;
+            lastRandomChange = millis();
+            Logger::instance().log("[Schedule] Inside window - display ON");
+            if (randomModeEnabled) selectRandomContent();
+        }
+    } else {
+        scheduleActive = true;
+    }
+
     if (randomModeEnabled) {
         updateRandomMode();
     }
+    updatePlayback();
 }
 
 const std::vector<ContentItem>& ContentManager::getContent() const {
@@ -363,153 +454,203 @@ const std::vector<String>& ContentManager::getDiscoveredThemes() const {
 bool ContentManager::renderContent(uint16_t contentId) {
     const ContentItem* item = getContentById(contentId);
     if (!item) return false;
-    
+
     Logger::instance().log("[ContentManager] Rendering: " + item->name);
-    
-    // V16.2.1-2026-01-10T18:50:00Z - Actually render content to display
+
+    // V16.4.13 - set the theme palette from the item's theme so Scroll/Countdown
+    // (which read themeManager.getColorN()) render in the right colours.
+    themeManager.setTheme(ThemeManager::themeNameToId(item->theme));
+
+    // V16.4.12 - Non-blocking: set up playback state, draw the first frame,
+    // and let update() advance it. Nothing here calls delay().
+    playFrames.clear();
+    proceduralName = "";
+    activePath = item->path;
+    activeType = item->type;
+    activeContentId = contentId;
+
     switch (item->type) {
-        case CONTENT_SCENE:
+        case CONTENT_SCENE: {
+            // matrix0Scene -> RIGHT window (0), matrix1Scene -> LEFT window (1).
+            disp->clear();
+            bool drewR = drawSceneFile(0, item->matrix0Scene, item->path);
+            bool drewL = drawSceneFile(1, item->matrix1Scene, item->path);
+            disp->show();
+            Logger::instance().log("[ContentManager] Scene rendered: " + item->name);
+            return drewR || drewL;
+        }
+
         case CONTENT_ANIMATION: {
-            // V16.4.10-2026-01-12T03:10:00Z - Full timeline rendering with frame playback
-            for (const auto& entry : fileEntries) {
-                if (entry.path == item->path) {
-                    // Read timeline JSON from flash
-                    char* jsonData = new char[entry.size + 1];
-                    if (esp_flash_read(NULL, jsonData, entry.offset, entry.size) == ESP_OK) {
-                        jsonData[entry.size] = '\0';
-                        
-                        DynamicJsonDocument doc(8192);
-                        if (deserializeJson(doc, jsonData) == DeserializationError::Ok) {
-                            JsonArray frames = doc["frames"];
-                            
-                            // Render each frame in sequence
-                            for (JsonObject frame : frames) {
-                                String sceneName = frame["scene"] | "";
-                                unsigned long frameDuration = frame["durationMs"] | 100;
-                                
-                                if (sceneName.length() > 0) {
-                                    // V16.4.10 - Resolve relative scene path
-                                    String fullScenePath = resolveScenePath(item->path, sceneName);
-                                    
-                                    // Find and render the scene
-                                    for (const auto& sceneEntry : fileEntries) {
-                                        if (sceneEntry.path == fullScenePath || 
-                                            sceneEntry.path.endsWith("/" + sceneName + ".json")) {
-                                            
-                                            char* sceneData = new char[sceneEntry.size + 1];
-                                            if (esp_flash_read(NULL, sceneData, sceneEntry.offset, sceneEntry.size) == ESP_OK) {
-                                                sceneData[sceneEntry.size] = '\0';
-                                                
-                                                // TODO: Parse scene JSON and render pixels
-                                                // For now, just clear and show to prove it works
-                                                disp->clear();
-                                                disp->show();
-                                                
-                                                delete[] sceneData;
-                                            }
-                                            break;
-                                        }
-                                    }
-                                    
-                                    delay(frameDuration);
-                                }
-                            }
-                            
-                            Logger::instance().log("[ContentManager] Timeline animation rendered: " + item->name);
-                            delete[] jsonData;
-                            return true;
-                        }
-                        
-                        delete[] jsonData;
-                        return false;
-                    }
-                    delete[] jsonData;
-                    return false;
-                }
+            const FileEntry* entry = findFile(item->path);
+            if (!entry) {
+                Logger::instance().log("[ContentManager] Flash entry not found: " + item->path);
+                activeContentId = -1;
+                return false;
             }
-            Logger::instance().log("[ContentManager] Flash entry not found: " + item->path);
-            return false;
-        }
-        
-        case CONTENT_SCROLL: {
-            // V16.2.6-2026-01-10T22:31:00Z - Read scroll from flash
-            for (const auto& entry : fileEntries) {
-                if (entry.path == item->path) {
-                    char* jsonData = new char[entry.size + 1];
-                    if (esp_flash_read(NULL, jsonData, entry.offset, entry.size) == ESP_OK) {
-                        jsonData[entry.size] = '\0';
-                        // TODO: Parse and display scroll
-                        disp->clear();
-                        disp->show();
-                        Logger::instance().log("[ContentManager] Scroll rendered: " + item->name);
-                        delete[] jsonData;
-                        return true;
-                    }
-                    delete[] jsonData;
-                    return false;
-                }
+
+            char* jsonData = new char[entry->size + 1];
+            if (esp_flash_read(NULL, jsonData, entry->offset, entry->size) != ESP_OK) {
+                delete[] jsonData;
+                activeContentId = -1;
+                return false;
             }
-            return false;
-        }
-        
-        case CONTENT_COUNTDOWN: {
-            // V16.2.6-2026-01-10T22:31:00Z - Read countdown from flash
-            for (const auto& entry : fileEntries) {
-                if (entry.path == item->path) {
-                    char* jsonData = new char[entry.size + 1];
-                    if (esp_flash_read(NULL, jsonData, entry.offset, entry.size) == ESP_OK) {
-                        jsonData[entry.size] = '\0';
-                        // TODO: Parse and display countdown
-                        disp->clear();
-                        disp->show();
-                        Logger::instance().log("[ContentManager] Countdown rendered: " + item->name);
-                        delete[] jsonData;
-                        return true;
-                    }
-                    delete[] jsonData;
-                    return false;
-                }
+            jsonData[entry->size] = '\0';
+
+            DynamicJsonDocument doc(24576);
+            DeserializationError perr = deserializeJson(doc, jsonData);
+            if (perr) {
+                delete[] jsonData;
+                Logger::instance().log("[ContentManager] Timeline parse error: " + item->name);
+                activeContentId = -1;
+                return false;
             }
-            return false;
-        }
-            
-        case CONTENT_PROCEDURAL: {
-            // V16.2.1-2026-01-10T18:50:00Z - Run procedural animations
-            unsigned long start = millis();
-            while (millis() - start < 5000) {  // 5 seconds
-                if (item->name == "Chase") {
-                    Animations::chase(disp);
-                } else if (item->name == "Snowfall") {
-                    Animations::snowfall(disp);
-                } else if (item->name == "Snowfall Gentle") {
-                    Animations::snowfallGentle(disp);
-                } else if (item->name == "Snowfall Heavy") {
-                    Animations::snowfallHeavy(disp);
-                } else if (item->name == "Sparkling Stars") {
-                    Animations::sparklingStars(disp);
-                }
-                delay(10);
+
+            // NOTE: deserializeJson(doc, char*) is zero-copy - string values point
+            // into jsonData, so copy everything into playFrames before freeing it.
+            playLoop = doc["loop"] | false;
+            JsonArray frames = doc["frames"];
+            for (JsonObject frame : frames) {
+                PlaybackFrame pf;
+                pf.sceneRef     = frame["scene"] | "";          // String ctor copies the bytes
+                pf.matrix0Scene = frame["matrix0Scene"] | "";
+                pf.matrix1Scene = frame["matrix1Scene"] | "";
+                pf.durationMs   = frame["durationMs"] | 100;
+                playFrames.push_back(pf);
             }
+            delete[] jsonData;
+
+            if (playFrames.empty()) {
+                Logger::instance().log("[ContentManager] Timeline has no frames: " + item->name);
+                activeContentId = -1;
+                return false;
+            }
+
+            playFrameIdx = 0;
+            drawPlayFrame(0);
+            playFrameStart = millis();
+            Logger::instance().log("[ContentManager] Timeline started (" + String(playFrames.size()) +
+                                   " frames, loop=" + String(playLoop) + "): " + item->name);
             return true;
         }
-            
+
+        case CONTENT_SCROLL: {
+            if (!scroll || !scroll->loadFromJSON(item->path)) {
+                activeContentId = -1;
+                return false;
+            }
+            scroll->begin();
+            Logger::instance().log("[ContentManager] Scroll started: " + item->name);
+            return true;
+        }
+
+        case CONTENT_COUNTDOWN: {
+            if (!countdown || !countdown->loadFromJSON(item->path)) {
+                activeContentId = -1;
+                return false;
+            }
+            countdown->begin();
+            Logger::instance().log("[ContentManager] Countdown started: " + item->name);
+            return true;
+        }
+
+        case CONTENT_PROCEDURAL: {
+            // Runs continuously (one non-blocking tick per update()) until replaced.
+            proceduralName = item->name;
+            return true;
+        }
+
         case CONTENT_TEST: {
-            // Test patterns - basic color display
             disp->clear();
             for (int m = 0; m < 2; m++) {
-                for (int x = 0; x < 25; x++) {
-                    for (int y = 0; y < 20; y++) {
+                for (int x = 0; x < COLS; x++) {
+                    for (int y = 0; y < ROWS; y++) {
                         disp->setPixel(m, x, y, CRGB::Red);
                     }
                 }
             }
             disp->show();
-            delay(2000);
             return true;
         }
-            
+
         default:
+            activeContentId = -1;
             return false;
+    }
+}
+
+// V16.4.12 - Advance whatever is currently playing. Called every loop() tick.
+void ContentManager::updatePlayback() {
+    if (activeContentId < 0) return;
+
+    switch (activeType) {
+        case CONTENT_ANIMATION: {
+            if (playFrames.empty()) { activeContentId = -1; return; }
+            if (millis() - playFrameStart < playFrames[playFrameIdx].durationMs) return;
+
+            size_t next = playFrameIdx + 1;
+            if (next >= playFrames.size()) {
+                if (!playLoop) {
+                    // One pass done - hold the last frame, stop advancing.
+                    Logger::instance().log("[ContentManager] Timeline finished");
+                    activeContentId = -1;
+                    return;
+                }
+                next = 0;
+            }
+            playFrameIdx = next;
+            drawPlayFrame(playFrameIdx);
+            playFrameStart = millis();
+            break;
+        }
+
+        case CONTENT_SCROLL:
+            if (scroll) scroll->update();
+            break;
+
+        case CONTENT_COUNTDOWN:
+            if (countdown) countdown->update();
+            break;
+
+        case CONTENT_PROCEDURAL:
+            runProceduralTick(proceduralName);
+            break;
+
+        default:
+            break;  // CONTENT_SCENE / CONTENT_TEST are static
+    }
+}
+
+void ContentManager::drawPlayFrame(size_t idx) {
+    if (idx >= playFrames.size()) return;
+    const PlaybackFrame& f = playFrames[idx];
+    disp->clear();
+    if (f.sceneRef.length() > 0) {
+        drawSceneFile(0, f.sceneRef, activePath);
+        drawSceneFile(1, f.sceneRef, activePath);
+    } else {
+        drawSceneFile(0, f.matrix0Scene, activePath);
+        drawSceneFile(1, f.matrix1Scene, activePath);
+    }
+    disp->show();
+}
+
+void ContentManager::runProceduralTick(const String& name) {
+    if (name == "Chase")                 Animations::chase(disp);
+    else if (name == "Snowfall")         Animations::snowfall(disp);
+    else if (name == "Snowfall Gentle")  Animations::snowfallGentle(disp);
+    else if (name == "Snowfall Heavy")   Animations::snowfallHeavy(disp);
+    else if (name == "Sparkling Stars")  Animations::sparklingStars(disp);
+    else if (name == "Color Wave")       Animations::colorWave(disp);
+}
+
+void ContentManager::stopPlayback() {
+    activeContentId = -1;
+    activeType = CONTENT_TEST;
+    proceduralName = "";
+    playFrames.clear();
+    if (disp) {
+        disp->clear();
+        disp->show();
     }
 }
 
@@ -544,19 +685,188 @@ void ContentManager::registerProceduralAnimations() {
     addContent("Color Wave", "osu", CONTENT_PROCEDURAL, "");
 }
 
-void ContentManager::registerTestPatterns() {
-    // V16.4.8-2026-01-11T22:30:00Z - Removed hardcoded test patterns
-    // Test patterns now discovered via JSON files in data_in/test/ folder
-    Logger::instance().log("[ContentManager] Test pattern registration complete (auto-discovery)");
-}
+// ---------------------------------------------------------------------------
+// V16.4.13 - Run mode / daily schedule window
+// ---------------------------------------------------------------------------
 
 void ContentManager::enableScheduler(bool enable) {
-    schedulerEnabled = enable;
-    Logger::instance().log("[ContentManager] Scheduler " + String(enable ? "ENABLED" : "DISABLED"));
+    setRunMode(enable ? RUN_MODE_SCHEDULE : RUN_MODE_MANUAL);
 }
 
 bool ContentManager::isSchedulerEnabled() const {
-    return schedulerEnabled;
+    return runMode == RUN_MODE_SCHEDULE;
+}
+
+void ContentManager::setRunMode(uint8_t mode) {
+    runMode = (mode == RUN_MODE_SCHEDULE) ? RUN_MODE_SCHEDULE : RUN_MODE_MANUAL;
+    scheduleBlanked = false;
+    saveScheduleToNVS();
+    Logger::instance().log("[ContentManager] Run mode: " +
+                           String(runMode == RUN_MODE_SCHEDULE ? "SCHEDULE" : "MANUAL"));
+}
+
+uint8_t ContentManager::getRunMode() const {
+    return runMode;
+}
+
+void ContentManager::setScheduleWindow(uint8_t sh, uint8_t sm, uint8_t eh, uint8_t em) {
+    schStartH = sh % 24; schStartM = sm % 60;
+    schEndH   = eh % 24; schEndM   = em % 60;
+    scheduleBlanked = false;
+    saveScheduleToNVS();
+    Logger::instance().log("[Schedule] Window " +
+        String(schStartH) + ":" + String(schStartM) + " - " +
+        String(schEndH) + ":" + String(schEndM));
+}
+
+void ContentManager::getScheduleWindow(uint8_t& sh, uint8_t& sm, uint8_t& eh, uint8_t& em) const {
+    sh = schStartH; sm = schStartM; eh = schEndH; em = schEndM;
+}
+
+bool ContentManager::computeInWindow() {
+    struct tm ti;
+    if (!nowLocal(ti)) {
+        if (!loggedTimeUnsynced) {
+            Logger::instance().log("[Schedule] time not synced - staying ON");
+            loggedTimeUnsynced = true;
+        }
+        return true;
+    }
+    loggedTimeUnsynced = false;
+
+    int now = ti.tm_hour * 60 + ti.tm_min;
+    int s   = schStartH * 60 + schStartM;
+    int e   = schEndH   * 60 + schEndM;
+    if (s == e) return true;                              // degenerate = always on
+    if (s < e)  return (now >= s && now < e);
+    return (now >= s || now < e);                         // window wraps past midnight
+}
+
+void ContentManager::loadScheduleFromNVS() {
+    Preferences p;
+    p.begin(PREFS_NAMESPACE, true);
+    runMode   = p.getUChar(RUN_MODE_KEY, RUN_MODE_MANUAL);
+    schStartH = p.getUChar("sch_sh", 17);
+    schStartM = p.getUChar("sch_sm", 0);
+    schEndH   = p.getUChar("sch_eh", 22);
+    schEndM   = p.getUChar("sch_em", 0);
+    p.end();
+    if (runMode != RUN_MODE_SCHEDULE) runMode = RUN_MODE_MANUAL;
+    Logger::instance().log("[Schedule] Loaded: mode=" +
+        String(runMode == RUN_MODE_SCHEDULE ? "SCHEDULE" : "MANUAL") + " " +
+        String(schStartH) + ":" + String(schStartM) + "-" +
+        String(schEndH) + ":" + String(schEndM));
+}
+
+void ContentManager::saveScheduleToNVS() {
+    Preferences p;
+    p.begin(PREFS_NAMESPACE, false);
+    p.putUChar(RUN_MODE_KEY, runMode);
+    p.putUChar("sch_sh", schStartH);
+    p.putUChar("sch_sm", schStartM);
+    p.putUChar("sch_eh", schEndH);
+    p.putUChar("sch_em", schEndM);
+    p.end();
+}
+
+// ---------------------------------------------------------------------------
+// V16.4.13 - Eligible-content mask for random mode
+// ---------------------------------------------------------------------------
+
+String ContentManager::contentKey(const ContentItem& item) {
+    return String((int)item.type) + "|" + item.theme + "|" + item.name;
+}
+
+bool ContentManager::isEligible(const ContentItem& item) const {
+    if (item.type == CONTENT_TEST) return false;
+    String key = contentKey(item);
+    for (const auto& k : excludedKeys) {
+        if (k == key) return false;
+    }
+    return true;
+}
+
+std::vector<String> ContentManager::getExcludedKeys() const {
+    return excludedKeys;
+}
+
+void ContentManager::setExcludedByIds(const String& csvIds) {
+    excludedKeys.clear();
+    int start = 0;
+    while (start < (int)csvIds.length()) {
+        int comma = csvIds.indexOf(',', start);
+        if (comma < 0) comma = csvIds.length();
+        String tok = csvIds.substring(start, comma);
+        tok.trim();
+        if (tok.length() > 0) {
+            const ContentItem* it = getContentById((uint16_t)tok.toInt());
+            if (it) excludedKeys.push_back(contentKey(*it));
+        }
+        start = comma + 1;
+    }
+    saveEligibleToNVS();
+    Logger::instance().log("[ContentManager] Excluded " + String(excludedKeys.size()) + " items from random");
+}
+
+void ContentManager::loadEligibleFromNVS() {
+    Preferences p;
+    p.begin(PREFS_NAMESPACE, true);
+    String blob = p.getString("rand_excl", "");
+    p.end();
+    excludedKeys.clear();
+    int start = 0;
+    while (start < (int)blob.length()) {
+        int nl = blob.indexOf('\n', start);
+        if (nl < 0) nl = blob.length();
+        String line = blob.substring(start, nl);
+        if (line.length() > 0) excludedKeys.push_back(line);
+        start = nl + 1;
+    }
+    if (excludedKeys.size() > 0) {
+        Logger::instance().log("[ContentManager] Loaded " + String(excludedKeys.size()) + " random exclusions");
+    }
+}
+
+void ContentManager::saveEligibleToNVS() {
+    String blob;
+    for (const auto& k : excludedKeys) { blob += k; blob += '\n'; }
+    Preferences p;
+    p.begin(PREFS_NAMESPACE, false);
+    p.putString("rand_excl", blob);
+    p.end();
+}
+
+// ---------------------------------------------------------------------------
+// V16.4.13 - Playback status for /api/status
+// ---------------------------------------------------------------------------
+
+ContentManager::PlaybackStatus ContentManager::getStatus() const {
+    PlaybackStatus st;
+    st.scheduleActive = scheduleActive;
+    st.id = activeContentId;
+    if (activeContentId < 0) {
+        st.name = "idle";
+        st.type = "idle";
+        st.theme = "";
+        return st;
+    }
+    const ContentItem* it = getContentById((uint16_t)activeContentId);
+    if (it) {
+        st.name = it->name;
+        st.theme = it->theme;
+        switch (it->type) {
+            case CONTENT_SCENE:      st.type = "scene"; break;
+            case CONTENT_ANIMATION:  st.type = "animation"; break;
+            case CONTENT_SCROLL:     st.type = "scroll"; break;
+            case CONTENT_COUNTDOWN:  st.type = "countdown"; break;
+            case CONTENT_PROCEDURAL: st.type = "procedural"; break;
+            case CONTENT_TEST:       st.type = "test"; break;
+        }
+    } else {
+        st.name = "?";
+        st.type = "?";
+    }
+    return st;
 }
 
 void ContentManager::enableRandomMode(bool enable) {
@@ -606,10 +916,10 @@ void ContentManager::updateRandomMode() {
 void ContentManager::selectRandomContent() {
     std::vector<ContentItem> pool;
     
-    // Build pool (exclude test patterns)
+    // Build pool (test patterns + user-excluded items skipped)
     for (const auto& item : contentRegistry) {
-        if (item.type == CONTENT_TEST) continue;
-        
+        if (!isEligible(item)) continue;
+
         if (randomThemeFilter.length() > 0) {
             if (item.theme == randomThemeFilter) {
                 pool.push_back(item);

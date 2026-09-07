@@ -15,10 +15,10 @@ MatrixDisplay::MatrixDisplay() {}
 void MatrixDisplay::begin() {
   FastLED.addLeds<LED_TYPE, PIN_LEFT, COLOR_ORDER>(leds, 0, MATRIX_LEDS).setCorrection(TypicalLEDStrip);
   FastLED.addLeds<LED_TYPE, PIN_RIGHT, COLOR_ORDER>(leds, MATRIX_LEDS, MATRIX_LEDS).setCorrection(TypicalLEDStrip);
-// V16.1.3-2026-01-09T05:25:00Z - Load saved brightness from NVS
+// V16.4.13 - Load saved brightness from NVS (namespace unified to show-config)
    Preferences prefs;
-   prefs.begin("matrixshow", true);
-   uint8_t savedBrightness = prefs.getUChar("brightness", DEFAULT_BRIGHTNESS);
+   prefs.begin(PREFS_NAMESPACE, true);
+   uint8_t savedBrightness = prefs.getUChar(BRIGHTNESS_KEY, DEFAULT_BRIGHTNESS);
    prefs.end();
    FastLED.setBrightness(savedBrightness);
    Serial.printf("Brightness restored: %d\n", savedBrightness);

@@ -1,256 +1,67 @@
-# ESP32 MatrixShow - VS Code + PlatformIO Setup Guide
-**V16.4.0-2026-01-11T21:30:00Z - Complete Arduino IDE Migration**
+# ESP32 MatrixShow — VS Code + PlatformIO Setup
 
-## 📦 PART 1: INSTALL SOFTWARE (15 minutes)
+**V16.4.13.** This is the one-time environment setup. For build/flash/first-boot
+detail see [`doco/InstallationGuide.md`](doco/InstallationGuide.md); for the
+project overview see [`doco/README.md`](doco/README.md).
 
-### Step 1: Install VS Code
-1. Download: https://code.visualstudio.com/
-2. Run installer (default settings are fine)
-3. Launch VS Code
-
-### Step 2: Install PlatformIO Extension
-1. In VS Code, click **Extensions** icon (left sidebar, 4 squares)
-2. Search: `PlatformIO IDE`
-3. Click **Install** (by PlatformIO)
-4. Wait 2-3 minutes for installation
-5. **RESTART VS Code** when prompted
-
-### Step 3: Verify PlatformIO Installed
-1. Look for **PlatformIO** icon (alien head) in left sidebar
-2. Click it - you should see "PIO Home" panel
-3. If not visible, press `Ctrl+Shift+P`, type "PlatformIO: Home"
+The project was migrated from Arduino IDE to PlatformIO in January 2026. The
+canonical layout is now `src/` + `main.cpp` + `platformio.ini` (no `.ino`).
 
 ---
 
-## 📁 PART 2: IMPORT YOUR PROJECT (5 minutes)
+## 1. Install the toolchain (~15 min)
 
-### Step 4: Extract Project Files
-1. Locate the `ESP32_MatrixShow_PIO.zip` file I created
-2. Extract to: `D:\patpa\Documents\PlatformIO\Projects\ESP32_MatrixShow`
-3. **IMPORTANT**: Delete your old Arduino folder OR rename it to `ESP32_MatrixShow_OLD`
+1. Install **VS Code** — https://code.visualstudio.com/
+2. Extensions (Ctrl+Shift+X) → search **PlatformIO IDE** → Install → restart VS Code.
+3. Confirm the PlatformIO (alien-head) icon appears in the left sidebar.
+4. Install the **Silicon Labs CP210x** USB driver for the DevKitC serial port.
 
-### Step 5: Open Project in VS Code
-1. In VS Code: **File → Open Folder**
-2. Navigate to: `D:\patpa\Documents\PlatformIO\Projects\ESP32_MatrixShow`
-3. Click **Select Folder**
-4. PlatformIO will auto-detect the project (look for blue bar at bottom)
+## 2. Open the project
 
-### Step 6: First-Time Setup
-1. PlatformIO will download ESP32 platform (~500MB)
-2. This happens automatically - watch bottom status bar
-3. **Takes 5-10 minutes** - go get coffee ☕
-4. When done, you'll see "PlatformIO: Ready"
+**File → Open Folder** → `D:\patpa\VSCODE\PlatformIO\Projects\ESP32_MatrixShow`
+(the actual working copy). PlatformIO auto-detects `platformio.ini`. On first
+build it downloads the pinned ESP32 platform (`espressif32@6.12.0`, ~500 MB) and
+toolchain — this first build takes 10-15 minutes; later builds are seconds.
 
----
-
-## 🔧 PART 3: VERIFY PROJECT WORKS (5 minutes)
-
-### Step 7: Build Project (Test Compile)
-1. Plug in ESP32 (to verify COM port)
-2. Bottom toolbar → Click **✓ Build** icon (checkmark)
-3. Watch terminal output - should say "SUCCESS"
-4. **If errors**: Post them, but there shouldn't be any
-
-### Step 8: Upload to ESP32
-1. Bottom toolbar → Click **→ Upload** icon (right arrow)
-2. PlatformIO compiles + uploads automatically
-3. After upload, serial monitor opens automatically
-4. You should see: "ESP32 Matrix Show V16.1.2"
-
----
-
-## 🎯 PART 4: YOUR NEW WORKFLOW (FASTER!)
-
-### Daily Development:
-```
-OLD Arduino Workflow:
-1. Edit code
-2. Click Verify (30s wait)
-3. See errors
-4. Fix → repeat
-5. Upload (separate step)
-6. Close/reopen serial monitor
-
-NEW VS Code Workflow:
-1. Edit code (errors show in real-time with red squiggles)
-2. Ctrl+Alt+U (uploads + opens monitor in 10s)
-3. Done!
-```
-
-### Keyboard Shortcuts:
-- **Ctrl+Alt+B** = Build/compile only
-- **Ctrl+Alt+U** = Upload + open serial monitor
-- **Ctrl+Alt+S** = Open serial monitor only
-- **Ctrl+`** = Toggle terminal
-- **Ctrl+Shift+P** = Command palette (search all commands)
-
-### Flash Your Data (Same as Before):
-1. Open terminal in VS Code: **Terminal → New Terminal**
-2. Run: `json_datain_2_FFAT.bat`
-3. Works exactly like Arduino IDE process
-4. Then **Ctrl+Alt+U** to upload firmware
-
----
-
-## 🚀 PART 5: NEW FEATURES YOU'LL LOVE
-
-### IntelliSense (Real-Time Error Detection):
-- Type `display.` and see all available methods
-- Hover over functions to see documentation
-- Red squiggles show errors BEFORE compile
-- **Example**: Missing semicolon? Red squiggle appears instantly
-
-### Multi-File Search:
-- **Ctrl+Shift+F** = Search entire project
-- **Ctrl+P** = Quick-open any file by name
-- **F12** = Jump to function definition
-- **Shift+F12** = Find all references
-
-### Better Serial Monitor:
-- Scrollback buffer (thousands of lines)
-- Save logs to file: Click filter icon → Save
-- Timestamps: **Terminal → Configure Tasks → Add Timestamps**
-- Multiple monitors: Open multiple terminals for multiple ESP32s
-
-### Incremental Builds:
-- First compile: ~30s (same as Arduino)
-- Every compile after: **5-10 seconds** (only changed files)
-- **HUGE time saver** for your large project
-
----
-
-## 🛠️ PART 6: TROUBLESHOOTING
-
-### "PlatformIO not detected"
-- Restart VS Code
-- Check Extensions → PlatformIO IDE is enabled
-- Reload window: `Ctrl+Shift+P` → "Developer: Reload Window"
-
-### "COM port not found"
-- Check Device Manager (Windows key → Device Manager)
-- Look under "Ports (COM & LPT)" for "Silicon Labs CP210x"
-- Note the COM port number (e.g., COM3)
-- Update `platformio.ini` if different:
-  ```ini
-  monitor_port = COM5  ; Change to your port
-  upload_port = COM5
-  ```
-
-### "Upload failed" or "Timeout"
-- Press **BOOT button** on ESP32 before upload
-- Check USB cable (try different cable)
-- Close Arduino IDE if still open
-- Verify baud rate: 921600 in `platformio.ini`
-
-### "esptool not found" (BAT file error)
-- PlatformIO installs tools on first build
-- Path: `C:\Users\patpa\.platformio\packages\tool-esptoolpy\esptool.exe`
-- If missing, run a build first (**Ctrl+Alt+B**)
-
-### Compilation errors after migration:
-- Should NOT happen (code is identical)
-- If errors appear: Post them - likely missing library
-- Verify libraries installed: PlatformIO icon → Libraries
-
----
-
-## 📋 PART 7: PROJECT FILE STRUCTURE
+## 3. Set your Wi-Fi credentials (required)
 
 ```
-ESP32_MatrixShow/
-├── platformio.ini           ← Project configuration
-├── partitions.csv           ← ESP32 partition table
-├── json_datain_2_FFAT.bat   ← Your data flash script
-├── LED_Content_Studio_V16_2.html  ← Content editor
-│
-├── src/                     ← All your code (was root folder)
-│   ├── main.cpp            ← Was ESP32_MatrixShow.ino
-│   ├── Config.h/cpp
-│   ├── MatrixDisplay.h/cpp
-│   ├── ContentManager.h/cpp
-│   ├── ThemeManager.h/cpp
-│   ├── WebController.h/cpp
-│   ├── Scheduler.h/cpp
-│   ├── Animations.h/cpp
-│   ├── Scroll.h/cpp
-│   ├── Countdown.h/cpp
-│   └── (all other .h/.cpp files)
-│
-├── include/                 ← Empty (PlatformIO convention)
-├── data_in/                 ← Your JSON files go here
-└── tools/
-    └── FFAT/
-        ├── minify_json.py
-        ├── build_simple_storage.py
-        └── generate_manifest.py
+copy src\Secrets.h.example src\Secrets.h
 ```
+Edit `src\Secrets.h` — set `WIFI_SSID`, `WIFI_PASSWORD`, `HOSTNAME`. `Secrets.h`
+is git-ignored; the build stops with a clear `#error` if it is missing.
 
-**Key Changes:**
-- `.ino` renamed to `main.cpp` (required by PlatformIO)
-- All code moved to `src/` folder
-- `platformio.ini` replaces Arduino IDE's board settings
+Check the COM port in `platformio.ini` (`monitor_port` / `upload_port`, default
+`COM3`) against Device Manager → Ports → "Silicon Labs CP210x".
 
----
+## 4. Build / upload / monitor
 
-## ✅ PART 8: MIGRATION CHECKLIST
+| Action | Shortcut | CLI |
+|---|---|---|
+| Build | Ctrl+Alt+B | `pio run -e esp32dev` |
+| Upload + monitor | Ctrl+Alt+U | `pio run -e esp32dev -t upload` |
+| Serial monitor | Ctrl+Alt+S | `pio device monitor` |
 
-Before deleting Arduino IDE project:
+Expected first serial line: `ESP32 Matrix Show V16.4.13`.
 
-- [ ] VS Code opens project without errors
-- [ ] Build succeeds (**Ctrl+Alt+B**)
-- [ ] Upload works (**Ctrl+Alt+U**)
-- [ ] Serial monitor shows boot messages
-- [ ] BAT file runs and flashes data
-- [ ] Web interface accessible at ESP32 IP
-- [ ] Test one content item displays correctly
+## 5. Flash the content
 
-**Once verified:**
-1. Backup Arduino project: Rename to `ESP32_MatrixShow_BACKUP_2026-01-11`
-2. Update your file shortcuts to point to new PlatformIO folder
-3. **Never open Arduino IDE for this project again**
+Terminal → `json_datain_2_FFAT.bat` (packs `data_in/` and flashes the blob to
+`0x290000`). Firmware and content are flashed separately — see
+[`doco/SPIFFS_UPLOAD_GUIDE.md`](doco/SPIFFS_UPLOAD_GUIDE.md).
 
 ---
 
-## 🎓 LEARNING RESOURCES
+## Troubleshooting
 
-### VS Code Basics:
-- Official guide: https://code.visualstudio.com/docs/getstarted/tips-and-tricks
-- Video: "VS Code in 100 Seconds" (YouTube)
+| Problem | Fix |
+|---|---|
+| Build: `Missing src/Secrets.h` | Do step 3. |
+| PlatformIO not detected | Restart VS Code; check the extension is enabled. |
+| COM port not found | Device Manager → Ports; update `platformio.ini`. |
+| Upload "Failed to connect" / timeout | Hold **BOOT** on the ESP32 during upload; try another cable; close any open serial monitor. |
+| `esptool not found` (BAT) | Run a firmware build first — PlatformIO installs `~/.platformio/packages/tool-esptoolpy/esptool.py` on first build. |
+| Themed colours all look like Christmas | Old firmware — rebuild from `main-v16.4`. |
 
-### PlatformIO Docs:
-- Quick start: https://docs.platformio.org/en/latest/integration/ide/vscode.html
-- ESP32 guide: https://docs.platformio.org/en/latest/platforms/espressif32.html
-
-### Keyboard Shortcuts PDF:
-- Windows: `Ctrl+K Ctrl+S` to see all shortcuts in VS Code
-- Print reference: https://code.visualstudio.com/shortcuts/keyboard-shortcuts-windows.pdf
-
----
-
-## 📞 SUPPORT
-
-**Post in chat if you encounter:**
-- Compilation errors after migration
-- Upload failures
-- Library dependency issues
-- Serial monitor problems
-
-**Include in your message:**
-- Full error text from terminal
-- Screenshot if visual issue
-- What step you're on in this guide
-
----
-
-## 🎉 CONGRATULATIONS!
-
-You've upgraded from Arduino IDE to a professional development environment. Your compile times will be **3x faster**, you'll catch errors **before compiling**, and you'll have access to powerful tools that make coding easier.
-
-**Next time you code:**
-- Open VS Code (not Arduino IDE)
-- Edit your `.cpp`/`.h` files
-- Watch for real-time error detection
-- Press **Ctrl+Alt+U** to upload
-- Enjoy 10-second builds instead of 30+
-
-Welcome to modern embedded development! 🚀
+See [`doco/InstallationGuide.md`](doco/InstallationGuide.md) for the full
+troubleshooting table and the first-boot checklist.
