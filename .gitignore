@@ -11,3 +11,5 @@ build/
 *.map
 *.log
 .DS_Store
+/newfiles/*
+/doco1/*
