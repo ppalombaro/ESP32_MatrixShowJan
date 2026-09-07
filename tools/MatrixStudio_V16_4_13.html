@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matrix Studio V16.4.13</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a23; --panel2:#1e2230; --line:#2b3040;
+    --text:#dfe3ee; --dim:#8a91a5; --accent:#4da3ff; --ok:#3fb96b;
+    --warn:#e6b34d; --err:#e5544b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 "Segoe UI",system-ui,Arial,sans-serif}
+  h1,h2,h3{margin:0 0 .5em}
+  header{display:flex;justify-content:space-between;align-items:center;
+    padding:10px 16px;background:#000;border-bottom:1px solid var(--line)}
+  header .ver{color:var(--dim);font-size:12px}
+  header b{color:var(--accent)}
+  nav{display:flex;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  nav button{background:none;border:0;border-right:1px solid var(--line);color:var(--dim);
+    padding:10px 18px;cursor:pointer;font-weight:600}
+  nav button.active{background:var(--panel2);color:#fff;box-shadow:inset 0 -2px 0 var(--accent)}
+  main{padding:16px;max-width:1400px;margin:0 auto}
+  .tab{display:none} .tab.active{display:block}
+  .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px}
+  .card h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+  label{font-size:12px;color:var(--dim)}
+  input,select,textarea{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+    border-radius:5px;padding:6px 8px;font-family:inherit}
+  input[type=number]{width:78px}
+  textarea{width:100%;font:12px/1.4 Consolas,monospace;min-height:150px;resize:vertical}
+  button.act{background:var(--accent);color:#04121f;border:0;border-radius:5px;padding:8px 14px;
+    font-weight:700;cursor:pointer}
+  button.act.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  button.act.danger{background:var(--err);color:#fff}
+  .ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .win-wrap{display:flex;gap:24px;background:#000;padding:14px;border-radius:8px;border:1px solid var(--line)}
+  .win{display:flex;flex-direction:column;gap:4px}
+  .win .cap{font-size:11px;color:var(--dim);text-align:center}
+  .grid{display:grid;gap:1px;background:#0c0c0c;width:max-content}
+  .px{width:12px;height:12px;background:#050505}
+  .grid.edit .px{cursor:crosshair}
+  .grid.edit .px:hover{outline:1px solid var(--accent)}
+  .px.cx{box-shadow:inset 0 0 0 1px #1d3b1d}
+  .tree{max-height:420px;overflow:auto;font-size:13px}
+  .tree .grp{color:var(--dim);margin-top:8px;text-transform:uppercase;font-size:11px;letter-spacing:.05em}
+  .tree .it{padding:3px 6px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+  .tree .it:hover{background:var(--panel2)}
+  .tree .it.sel{background:#26344a;color:#fff}
+  .tree .it .sz{color:var(--dim);font-size:11px}
+  .badge{font-size:10px;padding:1px 5px;border-radius:3px;background:var(--panel2);color:var(--dim)}
+  .rep{font:12px/1.5 Consolas,monospace;white-space:pre-wrap}
+  .rep .e{color:var(--err)} .rep .w{color:var(--warn)} .rep .o{color:var(--ok)} .rep .d{color:var(--dim)}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  td,th{border:1px solid var(--line);padding:4px 8px;text-align:left}
+  .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:middle;border:1px solid #0006}
+  .bar{height:14px;background:var(--panel2);border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+  .bar > i{display:block;height:100%;background:var(--ok)}
+  .hint{color:var(--dim);font-size:12px}
+  .pal button{margin:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1 style="font-size:17px;margin:0">Matrix Studio <b>V16.4.13</b></h1>
+  <span class="ver">firmware schema: dual 20&times;25 windows &middot; matrix0 = RIGHT (GPIO16) &middot; matrix1 = LEFT (GPIO17)</span>
+</header>
+<nav>
+  <button data-tab="library" class="active">Library / Verify</button>
+  <button data-tab="scene">Scene Editor</button>
+  <button data-tab="anim">Animation</button>
+  <button data-tab="scroll">Scroll</button>
+  <button data-tab="countdown">Countdown</button>
+  <button data-tab="ref">Reference</button>
+</nav>
+<main>
+
+<!-- ================= LIBRARY / VERIFY ================= -->
+<section id="library" class="tab active">
+  <div class="card">
+    <h3>Load content</h3>
+    <div class="ctl">
+      <input type="file" id="folderPick" webkitdirectory directory multiple hidden>
+      <button class="act" onclick="folderPick.click()">Open data_in folder&hellip;</button>
+      <input type="file" id="filePick" accept=".json" multiple hidden>
+      <button class="act ghost" onclick="filePick.click()">Add single file(s)&hellip;</button>
+      <button class="act ghost" onclick="clearLib()">Clear</button>
+      <span class="hint" id="libCount">nothing loaded</span>
+    </div>
+    <p class="hint">Everything is parsed locally in your browser &mdash; nothing is uploaded. Point this at
+      <code>ESP32_MatrixShow/data_in</code> to verify the current corpus, or at a single animation folder.</p>
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:1;min-width:280px">
+      <h3>Content</h3>
+      <div id="tree" class="tree"><span class="hint">&mdash;</span></div>
+    </div>
+    <div class="card" style="flex:2;min-width:420px">
+      <h3>Preview &amp; validation</h3>
+      <div id="libPreviewWrap"></div>
+      <div id="libReport" class="rep d">select an item</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Flash-budget check <span class="hint">(mirrors tools/FFAT/minify_json.py &mdash; 917,504 B partition)</span></h3>
+    <div class="bar"><i id="budgetBar" style="width:0"></i></div>
+    <p id="budgetTxt" class="hint">load content to estimate</p>
+    <button class="act ghost" onclick="verifyAll()">Verify all files</button>
+    <div id="verifyAll" class="rep" style="margin-top:10px"></div>
+  </div>
+</section>
+
+<!-- ================= SCENE EDITOR ================= -->
+<section id="scene" class="tab">
+  <div class="card">
+    <div class="ctl">
+      <label>name <input id="scName" value="new_scene" style="width:150px"></label>
+      <label>theme
+        <select id="scTheme"></select>
+      </label>
+      <label>centerX <input type="number" id="scCX" value="10"></label>
+      <label>centerY <input type="number" id="scCY" value="12"></label>
+      <label>durationMs <input type="number" id="scDur" placeholder="5000"></label>
+      <label>paint
+        <select id="scTarget">
+          <option value="both">both windows</option>
+          <option value="0">matrix0 (right)</option>
+          <option value="1">matrix1 (left)</option>
+        </select>
+      </label>
+    </div>
+    <div class="ctl">
+      <label>ink <input type="color" id="scInk" value="#ff3020"></label>
+      <span class="pal" id="scPal"></span>
+      <button class="act ghost" onclick="scFill()">Fill target</button>
+      <button class="act ghost" onclick="scClear()">Clear</button>
+      <span class="hint">click / drag = paint &middot; shift = erase</span>
+    </div>
+  </div>
+
+  <div class="win-wrap" id="scWins"></div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="ctl">
+      <button class="act" onclick="scExport()">Download minified JSON</button>
+      <button class="act ghost" onclick="scLoadFromText()">Load JSON from box</button>
+      <button class="act ghost" onclick="scToText()">Scene &rarr; box</button>
+      <span class="hint" id="scStat"></span>
+    </div>
+    <textarea id="scJson" spellcheck="false" placeholder="paste a scene JSON here, then Load"></textarea>
+  </div>
+</section>
+
+<!-- ================= ANIMATION ================= -->
+<section id="anim" class="tab">
+  <div class="card">
+    <h3>Player</h3>
+    <p class="hint">Load a <code>data_in</code> folder (or a single animation folder) in the Library tab first &mdash;
+      frame references resolve against the loaded scenes. Supports <code>{"scene":"name"}</code> and per-window
+      <code>{"matrix0Scene":..,"matrix1Scene":..}</code> frames, <code>loop</code>, and per-frame <code>durationMs</code>.</p>
+    <div class="ctl">
+      <label>animation <select id="anSel" style="min-width:220px"></select></label>
+      <button class="act" onclick="anPlay()">Play</button>
+      <button class="act ghost" onclick="anStop()">Stop</button>
+      <button class="act ghost" onclick="anStep()">Step</button>
+      <label>speed <input type="range" id="anSpeed" min="0.25" max="4" step="0.25" value="1"></label>
+      <span class="hint" id="anStat">idle</span>
+    </div>
+  </div>
+  <div class="win-wrap" id="anWins"></div>
+  <div class="card" style="margin-top:14px">
+    <h3>Timeline JSON</h3>
+    <textarea id="anJson" spellcheck="false" placeholder="timeline auto-fills when you pick an animation; you can also paste one and Reload"></textarea>
+    <div class="ctl" style="margin-top:8px">
+      <button class="act ghost" onclick="anReloadText()">Reload from box</button>
+      <button class="act" onclick="anExport()">Download animation_timeline.json</button>
+      <span class="hint" id="anExpStat"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCROLL ================= -->
+<section id="scroll" class="tab">
+  <div class="card">
+    <p class="hint">Firmware font is 5&times;7, ASCII 32&ndash;90, text is upper-cased on load. Colour cycles
+      theme colour 1 &rarr; 2 &rarr; 3 each full pass. The two windows are treated as one 40-wide strip.</p>
+    <div class="ctl">
+      <label>text <input id="srText" value="GO BUCKS" style="width:240px"></label>
+      <label>speed(ms/px) <input type="number" id="srSpeed" value="50"></label>
+      <label>theme <select id="srTheme"></select></label>
+      <button class="act" onclick="srPlay()">Play</button>
+      <button class="act ghost" onclick="srStop()">Stop</button>
+      <button class="act" onclick="srExport()">Download JSON</button>
+    </div>
+    <div id="srReport" class="rep d"></div>
+  </div>
+  <div class="win-wrap" id="srWins"></div>
+</section>
+
+<!-- ================= COUNTDOWN ================= -->
+<section id="countdown" class="tab">
+  <div class="card">
+    <p class="hint">Left window = Days / Hours, right window = Minutes / Seconds (firmware DIGIT_3&times;5).
+      <code>targetDate</code> is local wall-clock <code>"YYYY-MM-DD HH:MM:SS"</code> (DST-aware on device) or an epoch integer.
+      Header uses theme colour 1, digits colour 3.</p>
+    <div class="ctl">
+      <label>targetDate <input id="cdDate" value="2026-11-28 12:00:00" style="width:190px"></label>
+      <label>comment <input id="cdComment" value="OSU vs Michigan" style="width:200px"></label>
+      <label>theme <select id="cdTheme"></select></label>
+      <label>durationMs <input type="number" id="cdDur" placeholder="5000"></label>
+      <button class="act" onclick="cdStart()">Preview</button>
+      <button class="act ghost" onclick="cdStop()">Stop</button>
+      <button class="act" onclick="cdExport()">Download JSON</button>
+    </div>
+    <div id="cdReport" class="rep d"></div>
+  </div>
+  <div class="win-wrap" id="cdWins"></div>
+</section>
+
+<!-- ================= REFERENCE ================= -->
+<section id="ref" class="tab">
+  <div class="card">
+    <h3>Folder &rarr; content-type map</h3>
+    <table>
+      <tr><th>path pattern</th><th>type</th><th>name from</th><th>theme from</th></tr>
+      <tr><td>scenes/&lt;theme&gt;/&lt;name&gt;.json</td><td>SCENE</td><td>filename</td><td>2nd segment</td></tr>
+      <tr><td>animations/&lt;theme&gt;/&lt;name&gt;/animation_timeline.json</td><td>ANIMATION</td><td>folder name</td><td>2nd segment</td></tr>
+      <tr><td>scroll/&lt;theme&gt;/&lt;name&gt;.json</td><td>SCROLL</td><td>filename</td><td>2nd segment</td></tr>
+      <tr><td>countdown/&lt;theme&gt;/&lt;name&gt;.json</td><td>COUNTDOWN</td><td>filename</td><td>2nd segment</td></tr>
+      <tr><td>test/&lt;name&gt;.json</td><td>TEST (red fill)</td><td>filename</td><td>"test"</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Schemas the firmware actually reads</h3>
+    <pre class="rep d">SCENE      { "centerX":10, "centerY":12, "durationMs":5000,
+             "matrix0Scene":"&lt;path&gt;", "matrix1Scene":"&lt;path&gt;",
+             "pixels":[ {"x":0,"y":-5,"r":255,"g":128,"b":0}, ... ] }
+           x/y are offsets from centerX/centerY. Usable abs 0..19 (x), 0..24 (y).
+           matrix0Scene -> RIGHT window, matrix1Scene -> LEFT window (default: self / mirror).
+
+TIMELINE   { "loop":true, "durationMs":0, "theme":"halloween",
+             "frames":[
+               {"scene":"eyes_center","durationMs":500},
+               {"matrix1Scene":"letter_O","matrix0Scene":"letter_H","durationMs":1000}
+             ] }
+           durationMs 0/absent -> sum of frame durations (frame default 100). loop:false holds last frame.
+           bare "scene" names resolve to &lt;timeline folder&gt;/&lt;name&gt;.json; a value with "/" is used as-is.
+           ""/"blank" (empty pixels) = dark panel.
+
+SCROLL     { "text":"GO BUCKS", "speed":50 }        upper-cased, font ASCII 32-90
+COUNTDOWN  { "targetDate":"2026-11-28 12:00:00", "comment":"...", "durationMs":5000 }
+TEST       any json; renderer ignores it and fills both windows solid red</pre>
+  </div>
+  <div class="card">
+    <h3>Theme palettes (src/Config.h)</h3>
+    <div id="palTable"></div>
+  </div>
+</section>
+
+</main>
+<script>
+/* ---------------- constants ---------------- */
+const W=20, H=25, CELL=13;
+const THEMES={
+  off:        [[40,40,40],[40,40,40],[60,60,60]],
+  christmas:  [[255,0,0],[0,255,0],[255,255,255]],
+  halloween:  [[255,128,0],[128,0,128],[0,255,0]],
+  thanksgiving:[[255,140,0],[218,165,32],[139,69,19]],
+  newyear:    [[255,215,0],[192,192,192],[255,255,255]],
+  osu:        [[187,0,0],[102,102,102],[255,255,255]],
+};
+const THEME_NAMES=Object.keys(THEMES);
+const PART_SIZE=917504;
+
+/* 5x7 column font, bit0 = top row (matches src/Scroll.cpp FONT_5X7 semantics) */
+const F5x7={
+ ' ':[0,0,0,0,0],'!':[0,0,0x5F,0,0],'"':[0,7,0,7,0],'#':[0x14,0x7F,0x14,0x7F,0x14],
+ "'":[0,7,0,0,0],'(':[0,0x3E,0x41,0,0],')':[0,0x41,0x3E,0,0],'*':[0x14,8,0x3E,8,0x14],
+ '+':[8,8,0x3E,8,8],',':[0,0x50,0x30,0,0],'-':[8,8,8,8,8],'.':[0,0x60,0x60,0,0],'/':[0x20,0x10,8,4,2],
+ '0':[0x3E,0x51,0x49,0x45,0x3E],'1':[0,0x42,0x7F,0x40,0],'2':[0x42,0x61,0x51,0x49,0x46],
+ '3':[0x21,0x41,0x45,0x4B,0x31],'4':[0x18,0x14,0x12,0x7F,0x10],'5':[0x27,0x45,0x45,0x45,0x39],
+ '6':[0x3C,0x4A,0x49,0x49,0x30],'7':[0x01,0x71,0x09,0x05,0x03],'8':[0x36,0x49,0x49,0x49,0x36],
+ '9':[0x06,0x49,0x49,0x29,0x1E],':':[0,0x36,0x36,0,0],';':[0,0x56,0x36,0,0],
+ '<':[8,0x14,0x22,0x41,0],'=':[0x14,0x14,0x14,0x14,0x14],'>':[0x41,0x22,0x14,8,0],'?':[2,1,0x51,9,6],
+ '@':[0x32,0x49,0x79,0x41,0x3E],
+ 'A':[0x7E,0x11,0x11,0x11,0x7E],'B':[0x7F,0x49,0x49,0x49,0x36],'C':[0x3E,0x41,0x41,0x41,0x22],
+ 'D':[0x7F,0x41,0x41,0x22,0x1C],'E':[0x7F,0x49,0x49,0x49,0x41],'F':[0x7F,0x09,0x09,0x09,0x01],
+ 'G':[0x3E,0x41,0x49,0x49,0x7A],'H':[0x7F,0x08,0x08,0x08,0x7F],'I':[0,0x41,0x7F,0x41,0],
+ 'J':[0x20,0x40,0x41,0x3F,0x01],'K':[0x7F,0x08,0x14,0x22,0x41],'L':[0x7F,0x40,0x40,0x40,0x40],
+ 'M':[0x7F,0x02,0x0C,0x02,0x7F],'N':[0x7F,0x04,0x08,0x10,0x7F],'O':[0x3E,0x41,0x41,0x41,0x3E],
+ 'P':[0x7F,0x09,0x09,0x09,0x06],'Q':[0x3E,0x41,0x51,0x21,0x5E],'R':[0x7F,0x09,0x19,0x29,0x46],
+ 'S':[0x46,0x49,0x49,0x49,0x31],'T':[0x01,0x01,0x7F,0x01,0x01],'U':[0x3F,0x40,0x40,0x40,0x3F],
+ 'V':[0x1F,0x20,0x40,0x20,0x1F],'W':[0x3F,0x40,0x38,0x40,0x3F],'X':[0x63,0x14,0x08,0x14,0x63],
+ 'Y':[0x07,0x08,0x70,0x08,0x07],'Z':[0x61,0x51,0x49,0x45,0x43],
+};
+/* 3x5 digits, bit0 = top */
+const D3x5={
+ '0':[0x1F,0x11,0x1F],'1':[0x00,0x1F,0x00],'2':[0x1D,0x15,0x17],'3':[0x11,0x15,0x1F],
+ '4':[0x07,0x04,0x1F],'5':[0x17,0x15,0x1D],'6':[0x1F,0x15,0x1D],'7':[0x01,0x01,0x1F],
+ '8':[0x1F,0x15,0x1F],'9':[0x17,0x15,0x1F],':':[0x00,0x0A,0x00],' ':[0,0,0],
+};
+
+/* ---------------- tabs ---------------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById(b.dataset.tab).classList.add('active');
+});
+for(const s of ['scTheme','srTheme','cdTheme'])
+  document.getElementById(s).innerHTML=THEME_NAMES.map(t=>`<option>${t}</option>`).join('');
+document.getElementById('scTheme').value='christmas';
+document.getElementById('srTheme').value='osu';
+document.getElementById('cdTheme').value='osu';
+
+/* ---------------- grid helpers ---------------- */
+function makeWin(host,caption,editable,cx,cy){
+  const wrap=document.createElement('div'); wrap.className='win';
+  const cap=document.createElement('div'); cap.className='cap'; cap.textContent=caption;
+  const g=document.createElement('div'); g.className='grid'+(editable?' edit':'');
+  g.style.gridTemplateColumns=`repeat(${W},${CELL}px)`;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const d=document.createElement('div'); d.className='px';
+    if(cx!=null&&x===cx&&y===cy) d.classList.add('cx');
+    d.dataset.x=x; d.dataset.y=y; g.appendChild(d);
+  }
+  wrap.appendChild(cap); wrap.appendChild(g);
+  host.appendChild(wrap);
+  return g;
+}
+function clearGrid(g){ g.querySelectorAll('.px').forEach(p=>p.style.background=''); }
+function plot(g,x,y,r,gr,b){
+  if(x<0||x>=W||y<0||y>=H) return false;
+  const i=y*W+x; const cell=g.children[i];
+  if(cell) cell.style.background=`rgb(${r},${gr},${b})`;
+  return true;
+}
+/* draw a scene object's pixels onto a grid; returns {drawn,dropped} */
+function drawScene(g,scene){
+  const cx=int(scene.centerX,10), cy=int(scene.centerY,12);
+  let drawn=0,dropped=0;
+  clearGrid(g);
+  for(const p of (scene.pixels||[])){
+    const ok=plot(g,cx+int(p.x,0),cy+int(p.y,0),clamp(p.r),clamp(p.g),clamp(p.b));
+    ok?drawn++:dropped++;
+  }
+  return {drawn,dropped};
+}
+const int=(v,d)=>{const n=parseInt(v);return isNaN(n)?d:n;};
+const clamp=v=>Math.max(0,Math.min(255,int(v,0)));
+const hexRgb=h=>({r:parseInt(h.slice(1,3),16),g:parseInt(h.slice(3,5),16),b:parseInt(h.slice(5,7),16)});
+const dl=(name,txt)=>{const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);};
+
+/* ================= LIBRARY ================= */
+const lib={scenes:new Map(),anims:new Map(),scroll:new Map(),countdown:new Map(),test:new Map(),
+           byBare:new Map(), files:[]};  // files: {path,text,bytes}
+let selKey=null;
+
+document.getElementById('folderPick').onchange=e=>ingest(e.target.files);
+document.getElementById('filePick').onchange=e=>ingest(e.target.files);
+
+function clearLib(){
+  for(const k of ['scenes','anims','scroll','countdown','test']) lib[k].clear();
+  lib.byBare.clear(); lib.files=[]; selKey=null;
+  renderTree(); document.getElementById('libCount').textContent='nothing loaded';
+  document.getElementById('libReport').textContent='select an item';
+  document.getElementById('libPreviewWrap').innerHTML='';
+  refreshAnimSel(); budget();
+}
+
+async function ingest(fileList){
+  const files=[...fileList].filter(f=>f.name.toLowerCase().endsWith('.json'));
+  for(const f of files){
+    const text=await f.text();
+    const rel=(f.webkitRelativePath||f.name).replace(/\\/g,'/');
+    // strip leading "data_in/" and any parent so paths look like scenes/osu/x.json
+    const path=rel.replace(/^.*?(?=(scenes|animations|scroll|countdown|test)\/)/,'') || rel.split('/').slice(-1)[0];
+    const bytes=new TextEncoder().encode(minify(text)).length;
+    lib.files.push({path,text,bytes});
+    let obj=null; try{obj=JSON.parse(text);}catch(e){}
+    const seg=path.split('/');
+    if(path.startsWith('scenes/')&&path.endsWith('.json')){
+      const name=seg[seg.length-1].replace(/\.json$/,'');
+      lib.scenes.set(path,{path,name,theme:seg[1]||'?',obj,text,bytes});
+      lib.byBare.set(name,path);
+    }else if(/animation_timeline\.json$|_timeline\.json$/.test(path)){
+      const folder=seg.slice(0,-1).join('/');
+      const name=seg[seg.length-2]||'anim';
+      lib.anims.set(folder,{path,folder,name,theme:seg[1]||'?',obj,text,bytes,frames:[]});
+    }else if(path.startsWith('scroll/')){
+      lib.scroll.set(path,{path,name:seg[seg.length-1].replace(/\.json$/,''),theme:seg[1]||'?',obj,text,bytes});
+    }else if(path.startsWith('countdown/')){
+      lib.countdown.set(path,{path,name:seg[seg.length-1].replace(/\.json$/,''),theme:seg[1]||'?',obj,text,bytes});
+    }else if(path.startsWith('test/')){
+      lib.test.set(path,{path,name:seg[seg.length-1].replace(/\.json$/,''),theme:'test',obj,text,bytes});
+    }else{
+      // frame files inside an animation folder: index by bare name too
+      const name=seg[seg.length-1].replace(/\.json$/,'');
+      if(obj&&obj.pixels) { lib.scenes.set(path,{path,name,theme:seg[1]||'?',obj,text,bytes,frame:true});
+        lib.byBare.set(name,path); }
+    }
+  }
+  const n=lib.scenes.size+lib.anims.size+lib.scroll.size+lib.countdown.size+lib.test.size;
+  document.getElementById('libCount').textContent=
+    `${lib.files.length} json files  |  ${lib.scenes.size} scenes/frames, ${lib.anims.size} animations, `+
+    `${lib.scroll.size} scroll, ${lib.countdown.size} countdown, ${lib.test.size} test`;
+  renderTree(); refreshAnimSel(); budget(); verifyAll();
+}
+
+function renderTree(){
+  const t=document.getElementById('tree');
+  const groups=[
+    ['Scenes / frames',lib.scenes],['Animations',lib.anims],
+    ['Scroll',lib.scroll],['Countdown',lib.countdown],['Test',lib.test]];
+  let html='';
+  for(const [label,map] of groups){
+    if(!map.size) continue;
+    html+=`<div class="grp">${label} (${map.size})</div>`;
+    const items=[...map.values()].sort((a,b)=>(a.path||a.folder).localeCompare(b.path||b.folder));
+    for(const it of items){
+      const key=it.path||it.folder;
+      html+=`<div class="it${key===selKey?' sel':''}" data-key="${esc(key)}">
+        <span>${esc(it.name)} <span class="badge">${esc(it.theme)}</span></span>
+        <span class="sz">${key.replace(/\.json$/,'').replace(/^(scenes|animations|scroll|countdown|test)\//,'')}</span></div>`;
+    }
+  }
+  t.innerHTML=html||'<span class="hint">&mdash;</span>';
+  t.querySelectorAll('.it').forEach(el=>el.onclick=()=>{selKey=el.dataset.key;renderTree();showItem(selKey);});
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function showItem(key){
+  const wrap=document.getElementById('libPreviewWrap'); wrap.innerHTML='';
+  const rep=document.getElementById('libReport');
+  if(lib.scenes.has(key)){
+    const s=lib.scenes.get(key);
+    const gL=makeWin(wrap,'matrix1 (LEFT)',false,int(s.obj?.centerX,10),int(s.obj?.centerY,12));
+    const gR=makeWin(wrap,'matrix0 (RIGHT)',false,int(s.obj?.centerX,10),int(s.obj?.centerY,12));
+    const m0=resolveRef(s.obj?.matrix0Scene,key)||s.obj;
+    const m1=resolveRef(s.obj?.matrix1Scene,key)||m0;
+    const a=drawScene(gR,m0||{}), b=drawScene(gL,m1||{});
+    rep.innerHTML=validateScene(s.obj,key,a.dropped+b.dropped);
+  }else if(lib.anims.has(key)){
+    const an=lib.anims.get(key);
+    makeWin(wrap,'matrix1 (LEFT)',false); makeWin(wrap,'matrix0 (RIGHT)',false);
+    rep.innerHTML=validateAnim(an);
+    // load into player
+    document.getElementById('anSel').value=key; document.getElementById('anJson').value=pretty(an.obj);
+    anLoad(key);
+  }else if(lib.scroll.has(key)){
+    const s=lib.scroll.get(key); rep.innerHTML=validateScroll(s.obj);
+    document.getElementById('srText').value=(s.obj?.text||'');
+    document.getElementById('srSpeed').value=int(s.obj?.speed,50);
+    if(THEMES[s.theme]) document.getElementById('srTheme').value=s.theme;
+  }else if(lib.countdown.has(key)){
+    const s=lib.countdown.get(key); rep.innerHTML=validateCountdown(s.obj);
+    document.getElementById('cdDate').value=(s.obj?.targetDate||'');
+    document.getElementById('cdComment').value=(s.obj?.comment||'');
+    if(THEMES[s.theme]) document.getElementById('cdTheme').value=s.theme;
+  }else if(lib.test.has(key)){
+    const gL=makeWin(wrap,'matrix1 (LEFT)',false), gR=makeWin(wrap,'matrix0 (RIGHT)',false);
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){plot(gL,x,y,255,0,0);plot(gR,x,y,255,0,0);}
+    rep.innerHTML='<span class="o">TEST pattern &mdash; firmware fills both windows solid red, ignores file content.</span>';
+  }
+}
+
+/* resolve a "matrixNScene" / frame "scene" reference to a scene object */
+function resolveRef(ref,baseKey){
+  if(!ref) return null;
+  if(ref==='blank'||ref==='') return {pixels:[]};
+  let cand=ref.endsWith('.json')?ref:ref+'.json';
+  if(ref.indexOf('/')>=0){
+    if(lib.scenes.has(cand)) return lib.scenes.get(cand).obj;
+  }
+  // bare name: prefer same folder as base
+  const baseDir=(baseKey||'').split('/').slice(0,-1).join('/');
+  const local=baseDir+'/'+cand;
+  if(lib.scenes.has(local)) return lib.scenes.get(local).obj;
+  const bareName=ref.replace(/\.json$/,'').split('/').pop();
+  if(lib.byBare.has(bareName)) return lib.scenes.get(lib.byBare.get(bareName)).obj;
+  return null;
+}
+
+/* ---------- validators ---------- */
+function line(cls,txt){return `<span class="${cls}">${esc(txt)}</span>\n`;}
+function validateScene(o,key,droppedFromDraw){
+  if(!o) return line('e','JSON did not parse.');
+  let out='';
+  const cx=int(o.centerX,10),cy=int(o.centerY,12);
+  if(o.centerX===undefined) out+=line('w','centerX missing -> firmware defaults to 10');
+  if(o.centerY===undefined) out+=line('w','centerY missing -> firmware defaults to 12');
+  if(!Array.isArray(o.pixels)) return out+line('e','pixels[] missing or not an array');
+  let off=0,bad=0,dupes=0; const seen=new Set();
+  for(const p of o.pixels){
+    const ax=cx+int(p.x,0),ay=cy+int(p.y,0);
+    if(ax<0||ax>=W||ay<0||ay>=H) off++;
+    if([p.r,p.g,p.b].some(v=>v===undefined||v<0||v>255||!Number.isInteger(v))) bad++;
+    const k=p.x+','+p.y; if(seen.has(k)) dupes++; seen.add(k);
+  }
+  out+=line('d',`${o.pixels.length} pixels, center (${cx},${cy})`);
+  out+= off? line('e',`${off} pixel(s) fall outside the 20x25 window -> silently dropped on device`)
+           : line('o','all pixels on-panel');
+  if(bad) out+=line('w',`${bad} pixel(s) with out-of-range / non-integer r,g,b`);
+  if(dupes) out+=line('w',`${dupes} duplicate coordinate(s) (last wins)`);
+  for(const f of ['matrix0Scene','matrix1Scene'])
+    if(o[f]&&!resolveRef(o[f],key)) out+=line('e',`${f} "${o[f]}" does not resolve to a loaded scene`);
+  if(o.durationMs!==undefined&&(!(o.durationMs>0))) out+=line('w','durationMs present but not a positive number');
+  out+=line('d',`~${key&&lib.scenes.get(key)?lib.scenes.get(key).bytes:'?'} B minified (+6 B header, padded to 512 B slot)`);
+  return out;
+}
+function validateAnim(an){
+  const o=an.obj; if(!o) return line('e','timeline JSON did not parse');
+  let out=line('d',`${an.folder}`);
+  if(!Array.isArray(o.frames)||!o.frames.length) return out+line('e','frames[] missing or empty');
+  out+=line('d',`${o.frames.length} frames, loop=${o.loop===true}`);
+  let sum=0,unresolved=[];
+  o.frames.forEach((f,i)=>{
+    sum+=int(f.durationMs,100);
+    const refs = f.scene!==undefined ? [f.scene] : [f.matrix0Scene,f.matrix1Scene];
+    if(f.scene===undefined&&f.matrix0Scene===undefined&&f.matrix1Scene===undefined)
+      unresolved.push(`frame ${i}: no scene / matrix0Scene / matrix1Scene`);
+    for(const r of refs){
+      if(r===undefined||r===''||r==='blank') continue;
+      if(!resolveRef(r,an.path)) unresolved.push(`frame ${i}: "${r}" unresolved`);
+    }
+  });
+  const eff = (o.durationMs>0)?o.durationMs:sum;
+  out+=line('d',`frame-duration sum = ${sum} ms; effective item duration = ${eff} ms`);
+  if(o.durationMs>0&&o.durationMs!==sum) out+=line('d',`(durationMs override differs from frame sum - fine)`);
+  if(unresolved.length){ out+=line('e',`${unresolved.length} problem(s):`); unresolved.slice(0,12).forEach(u=>out+=line('e','  '+u)); }
+  else out+=line('o','all frame references resolve');
+  // frame files size
+  const dir=an.folder;
+  let fb=an.bytes;
+  for(const [p,s] of lib.scenes) if(p.startsWith(dir+'/')) fb+=s.bytes+6+pad(s.bytes);
+  out+=line('d',`animation folder ~${fb} B on flash (timeline + frames, with padding)`);
+  return out;
+}
+function validateScroll(o){
+  if(!o) return line('e','JSON did not parse');
+  let out='';
+  if(typeof o.text!=='string'||!o.text) out+=line('e','text missing / empty');
+  else{
+    const up=o.text.toUpperCase();
+    const bad=[...up].filter(c=>c.charCodeAt(0)<32||c.charCodeAt(0)>90);
+    out+=line('d',`"${up}"  (${up.length} chars, ~${up.length*6} px wide)`);
+    if(bad.length) out+=line('w',`chars outside ASCII 32-90 render blank: ${[...new Set(bad)].join(' ')}`);
+    else out+=line('o','all characters in the 32-90 font range');
+  }
+  if(o.speed!==undefined&&!(o.speed>0)) out+=line('w','speed not a positive number (default 50)');
+  return out;
+}
+function validateCountdown(o){
+  if(!o) return line('e','JSON did not parse');
+  let out='';
+  const t=parseTarget(o.targetDate);
+  if(!t) out+=line('e',`targetDate "${o.targetDate}" not "YYYY-MM-DD HH:MM:SS" or an epoch int`);
+  else{
+    const days=(t-Date.now())/86400000;
+    out+=line('d',`target: ${t.toLocaleString? t.toLocaleString():t}`);
+    out+= days<0? line('w',`target is in the past (${Math.abs(days).toFixed(1)} d ago) -> device flashes 00`)
+                : line('o',`${days.toFixed(1)} days out`);
+  }
+  if(o.comment&&o.comment.length>40) out+=line('w','comment is long; it is not shown on the matrix anyway');
+  return out;
+}
+function parseTarget(v){
+  if(v===undefined||v===null) return null;
+  if(typeof v==='number'||/^\d+$/.test(v)) return new Date(parseInt(v)*1000);
+  const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  if(!m) return null;
+  return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]);
+}
+const pad=n=>(512-(n%512))%512;
+const minify=t=>{try{return JSON.stringify(JSON.parse(t));}catch(e){return t;}};
+
+/* ---------- budget & verify-all ---------- */
+function budget(){
+  let total=4;
+  for(const f of lib.files){
+    const c=f.bytes; total+= 2 + f.path.length + 4 + c + pad(2+f.path.length+4+c);
+  }
+  const pct=Math.min(100,total/PART_SIZE*100);
+  document.getElementById('budgetBar').style.width=pct+'%';
+  document.getElementById('budgetBar').style.background = pct>90?'var(--err)':pct>75?'var(--warn)':'var(--ok)';
+  document.getElementById('budgetTxt').textContent=
+    `${total.toLocaleString()} B of ${PART_SIZE.toLocaleString()} B  (${pct.toFixed(1)}%)  across ${lib.files.length} files`;
+}
+function verifyAll(){
+  const host=document.getElementById('verifyAll'); if(!lib.files.length){host.textContent='';return;}
+  let e=0,w=0,html='';
+  const push=(name,rep)=>{
+    const ec=(rep.match(/class="e"/g)||[]).length, wc=(rep.match(/class="w"/g)||[]).length;
+    e+=ec; w+=wc;
+    if(ec||wc) html+=`\n<b>${esc(name)}</b>\n`+rep;
+  };
+  for(const s of lib.scenes.values()) if(!s.frame) push(s.path,validateScene(s.obj,s.path));
+  for(const a of lib.anims.values()) push(a.folder,validateAnim(a));
+  for(const s of lib.scroll.values()) push(s.path,validateScroll(s.obj));
+  for(const s of lib.countdown.values()) push(s.path,validateCountdown(s.obj));
+  host.innerHTML=(e?`<span class="e">${e} error(s)</span>  `:'<span class="o">0 errors</span>  ')+
+                 (w?`<span class="w">${w} warning(s)</span>`:'')+'\n'+(html||'\n<span class="o">clean</span>');
+}
+
+/* ================= SCENE EDITOR ================= */
+let scPix=new Map(); // "x,y" -> [r,g,b]  (center-relative)
+let scGrids={};
+document.getElementById('scPal').innerHTML='';
+function scBuildPal(){
+  const th=document.getElementById('scTheme').value;
+  document.getElementById('scPal').innerHTML=(THEMES[th]||[]).map((c,i)=>
+    `<button class="act ghost" style="padding:4px 8px" onclick="scSetInk(${c[0]},${c[1]},${c[2]})">c${i+1}</button>`).join('');
+}
+function scSetInk(r,g,b){document.getElementById('scInk').value=
+  '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');}
+document.getElementById('scTheme').onchange=scBuildPal;
+function scRebuild(){
+  const host=document.getElementById('scWins'); host.innerHTML='';
+  const tgt=document.getElementById('scTarget').value;
+  const cx=int(scCX.value,10), cy=int(scCY.value,12);
+  scGrids.L=makeWin(host,'matrix1 (LEFT)'+(tgt==='1'||tgt==='both'?' *':''),true,cx,cy);
+  scGrids.R=makeWin(host,'matrix0 (RIGHT)'+(tgt==='0'||tgt==='both'?' *':''),true,cx,cy);
+  for(const g of [scGrids.L,scGrids.R]) bindPaint(g);
+  scRender();
+}
+function bindPaint(g){
+  const handler=e=>{
+    if(e.buttons!==1&&e.type!=='mousedown') return;
+    const c=e.target.closest('.px'); if(!c) return;
+    const cx=int(scCX.value,10), cy=int(scCY.value,12);
+    const rx=+c.dataset.x-cx, ry=+c.dataset.y-cy;
+    if(e.shiftKey) scPix.delete(rx+','+ry);
+    else { const k=hexRgb(document.getElementById('scInk').value); scPix.set(rx+','+ry,[k.r,k.g,k.b]); }
+    scRender();
+  };
+  g.addEventListener('mousedown',handler); g.addEventListener('mouseover',handler);
+}
+function scRender(){
+  const cx=int(scCX.value,10), cy=int(scCY.value,12);
+  clearGrid(scGrids.L); clearGrid(scGrids.R);
+  let off=0;
+  for(const [k,[r,g,b]] of scPix){
+    const [rx,ry]=k.split(',').map(Number);
+    const ax=cx+rx, ay=cy+ry;
+    if(ax<0||ax>=W||ay<0||ay>=H){off++;continue;}
+    plot(scGrids.L,ax,ay,r,g,b); plot(scGrids.R,ax,ay,r,g,b);
+  }
+  document.getElementById('scStat').textContent=
+    `${scPix.size} pixels${off?`  |  ${off} off-panel (will be dropped)`:''}`;
+}
+function scFill(){
+  const cx=int(scCX.value,10), cy=int(scCY.value,12);
+  const k=hexRgb(document.getElementById('scInk').value);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++) scPix.set((x-cx)+','+(y-cy),[k.r,k.g,k.b]);
+  scRender();
+}
+function scClear(){scPix.clear();scRender();}
+for(const id of ['scCX','scCY','scTarget']) document.getElementById(id).onchange=scRebuild;
+function scObject(){
+  const o={name:scName.value.trim(),theme:scTheme.value,
+    centerX:int(scCX.value,10),centerY:int(scCY.value,12),pixels:[]};
+  const d=int(scDur.value,0); if(d>0)o.durationMs=d;
+  for(const [k,[r,g,b]] of scPix){const [x,y]=k.split(',').map(Number);o.pixels.push({x,y,r,g,b});}
+  o.pixels.sort((a,b)=>a.y-b.y||a.x-b.x);
+  return o;
+}
+function scToText(){document.getElementById('scJson').value=pretty(scObject());}
+function scExport(){
+  const o=scObject();
+  if(!o.name) return alert('name required');
+  dl(o.name+'.json',JSON.stringify(o));
+  document.getElementById('scStat').textContent=`exported ${o.name}.json (${JSON.stringify(o).length} B)`;
+}
+function scLoadFromText(){
+  let o; try{o=JSON.parse(document.getElementById('scJson').value);}catch(e){return alert('bad JSON: '+e.message);}
+  scName.value=o.name||o.sceneId||o.displayName||'scene';
+  if(THEMES[o.theme]) scTheme.value=o.theme;
+  scCX.value=int(o.centerX,10); scCY.value=int(o.centerY,12);
+  scDur.value=o.durationMs||'';
+  scPix.clear();
+  for(const p of (o.pixels||[])) scPix.set(int(p.x,0)+','+int(p.y,0),[clamp(p.r),clamp(p.g),clamp(p.b)]);
+  scBuildPal(); scRebuild();
+}
+const pretty=o=>JSON.stringify(o,null,2);
+
+/* ================= ANIMATION ================= */
+let anTimer=null, anIdx=0, anFrames=[], anCur=null, anGrids={};
+function refreshAnimSel(){
+  const sel=document.getElementById('anSel');
+  sel.innerHTML=[...lib.anims.keys()].map(k=>`<option value="${esc(k)}">${esc(lib.anims.get(k).name)}</option>`).join('')
+    || '<option value="">(load a folder in Library)</option>';
+}
+document.getElementById('anSel').onchange=e=>{ if(e.target.value){
+  document.getElementById('anJson').value=pretty(lib.anims.get(e.target.value).obj); anLoad(e.target.value);} };
+function anBuildWins(){
+  const host=document.getElementById('anWins'); host.innerHTML='';
+  anGrids.L=makeWin(host,'matrix1 (LEFT)',false); anGrids.R=makeWin(host,'matrix0 (RIGHT)',false);
+}
+function anLoad(key){
+  anStop(); anBuildWins(); anCur=key;
+  let o; try{o=JSON.parse(document.getElementById('anJson').value);}catch(e){
+    document.getElementById('anStat').textContent='bad timeline JSON'; return; }
+  anFrames=(o.frames||[]).map(f=>({
+    dur:int(f.durationMs,100),
+    both: f.scene!==undefined ? resolveRef(f.scene,key) : null,
+    m0: f.scene!==undefined ? null : resolveRef(f.matrix0Scene,key),
+    m1: f.scene!==undefined ? null : resolveRef(f.matrix1Scene,key),
+  }));
+  anLoop=o.loop===true; anIdx=0;
+  document.getElementById('anStat').textContent=`${anFrames.length} frames loaded, loop=${anLoop}`;
+  anShow(0);
+}
+function anReloadText(){ anLoad(anCur||document.getElementById('anSel').value); }
+let anLoop=false;
+function anShow(i){
+  const f=anFrames[i]; if(!f) return;
+  clearGrid(anGrids.L); clearGrid(anGrids.R);
+  if(f.both){ drawScene(anGrids.R,f.both); drawScene(anGrids.L,f.both); }
+  else{ if(f.m0)drawScene(anGrids.R,f.m0); if(f.m1)drawScene(anGrids.L,f.m1); }
+  document.getElementById('anStat').textContent=`frame ${i+1}/${anFrames.length}  (${f.dur} ms)`;
+}
+function anPlay(){
+  if(!anFrames.length) return;
+  anStop();
+  const speed=parseFloat(document.getElementById('anSpeed').value)||1;
+  const tick=()=>{
+    anShow(anIdx);
+    const d=anFrames[anIdx].dur/speed;
+    anIdx++;
+    if(anIdx>=anFrames.length){ if(anLoop) anIdx=0; else { anTimer=null; return; } }
+    anTimer=setTimeout(tick,d);
+  };
+  tick();
+}
+function anStop(){ if(anTimer){clearTimeout(anTimer);anTimer=null;} }
+function anStep(){ anStop(); anShow(anIdx); anIdx=(anIdx+1)%Math.max(1,anFrames.length); }
+document.getElementById('anSpeed').oninput=()=>{ if(anTimer){anStop();anPlay();} };
+function anExport(){
+  let o; try{o=JSON.parse(document.getElementById('anJson').value);}catch(e){return alert('bad JSON: '+e.message);}
+  o.metadata={frameCount:(o.frames||[]).length};
+  if(!o.version) o.version='16.4';
+  dl('animation_timeline.json',JSON.stringify(o));
+  document.getElementById('anExpStat').textContent='exported animation_timeline.json';
+}
+
+/* ================= SCROLL ================= */
+let srTimer=null, srPos=0, srGrid=null, srColorIdx=0;
+function srBuild(){
+  const host=document.getElementById('srWins'); host.innerHTML='';
+  const wrap=document.createElement('div'); wrap.className='win';
+  const cap=document.createElement('div'); cap.className='cap';
+  cap.textContent='40-wide strip  |  cols 0-19 = matrix0 (RIGHT), 20-39 = matrix1 (LEFT)';
+  const g=document.createElement('div'); g.className='grid';
+  g.style.gridTemplateColumns=`repeat(40,${CELL}px)`;
+  for(let y=0;y<H;y++)for(let x=0;x<40;x++){const d=document.createElement('div');d.className='px';g.appendChild(d);}
+  wrap.appendChild(cap); wrap.appendChild(g); host.appendChild(wrap);
+  srGrid=g;
+}
+function srPlot(x,y,c){ if(x<0||x>=40||y<0||y>=H)return; const cell=srGrid.children[y*40+x];
+  if(cell) cell.style.background=`rgb(${c[0]},${c[1]},${c[2]})`; }
+function srFrame(){
+  for(const p of srGrid.children) p.style.background='';
+  const text=(document.getElementById('srText').value||'').toUpperCase();
+  const pal=THEMES[document.getElementById('srTheme').value]||THEMES.off;
+  const col=pal[srColorIdx%3];
+  const yTop=Math.floor((H-7)/2);
+  for(let i=0;i<text.length;i++){
+    const glyph=F5x7[text[i]]; if(!glyph) continue;
+    const base=srPos+i*6;
+    for(let cx=0;cx<5;cx++){ const x=base+cx;
+      for(let row=0;row<7;row++) if(glyph[cx]&(1<<row)) srPlot(x,yTop+row,col);
+    }
+  }
+  srPos--;
+  const total=text.length*6;
+  if(srPos<-total){ srPos=40; srColorIdx=(srColorIdx+1)%3; }
+}
+function srPlay(){
+  srStop(); srBuild(); srPos=40; srColorIdx=0;
+  document.getElementById('srReport').innerHTML=validateScroll({
+    text:document.getElementById('srText').value, speed:int(document.getElementById('srSpeed').value,50)});
+  const spd=Math.max(10,int(document.getElementById('srSpeed').value,50));
+  srTimer=setInterval(srFrame,spd);
+}
+function srStop(){ if(srTimer){clearInterval(srTimer);srTimer=null;} }
+function srExport(){
+  const o={text:document.getElementById('srText').value,speed:int(document.getElementById('srSpeed').value,50)};
+  dl((o.text.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')||'scroll')+'.json',JSON.stringify(o));
+}
+srBuild();
+
+/* ================= COUNTDOWN ================= */
+let cdTimer=null, cdGrids={};
+function cdBuild(){
+  const host=document.getElementById('cdWins'); host.innerHTML='';
+  cdGrids.L=makeWin(host,'matrix1 (LEFT)  -  Days / Hours',false);
+  cdGrids.R=makeWin(host,'matrix0 (RIGHT)  -  Minutes / Seconds',false);
+}
+function cdDigits(g,text,x0,y0,c){
+  let x=x0;
+  for(const ch of text){ const glyph=D3x5[ch]||D3x5[' '];
+    for(let cx=0;cx<3;cx++){ for(let row=0;row<5;row++) if(glyph[cx]&(1<<row)) plot(g,x+cx,y0+row,c[0],c[1],c[2]); }
+    x+=4;
+  }
+}
+function cdFrame(){
+  const t=parseTarget(document.getElementById('cdDate').value);
+  const pal=THEMES[document.getElementById('cdTheme').value]||THEMES.off;
+  clearGrid(cdGrids.L); clearGrid(cdGrids.R);
+  if(!t){ cdDigits(cdGrids.L,'ERR',2,10,pal[0]); return; }
+  let s=Math.max(0,Math.floor((t-Date.now())/1000));
+  const d=Math.floor(s/86400); s-=d*86400;
+  const h=Math.floor(s/3600); s-=h*3600;
+  const m=Math.floor(s/60); s-=m*60;
+  const p2=n=>String(n).padStart(2,'0');
+  // header pips in colour 1, digits colour 3
+  for(let x=2;x<18;x++){ plot(cdGrids.L,x,1,pal[0][0],pal[0][1],pal[0][2]); plot(cdGrids.R,x,1,pal[0][0],pal[0][1],pal[0][2]); }
+  cdDigits(cdGrids.L,p2(Math.min(99,d)),4,5,pal[2]);
+  cdDigits(cdGrids.L,p2(h),4,15,pal[2]);
+  cdDigits(cdGrids.R,p2(m),4,5,pal[2]);
+  cdDigits(cdGrids.R,p2(s),4,15,pal[2]);
+}
+function cdStart(){
+  cdStop(); cdBuild();
+  document.getElementById('cdReport').innerHTML=validateCountdown({
+    targetDate:document.getElementById('cdDate').value, comment:document.getElementById('cdComment').value});
+  cdFrame(); cdTimer=setInterval(cdFrame,1000);
+}
+function cdStop(){ if(cdTimer){clearInterval(cdTimer);cdTimer=null;} }
+function cdExport(){
+  const o={targetDate:document.getElementById('cdDate').value,comment:document.getElementById('cdComment').value};
+  const d=int(document.getElementById('cdDur').value,0); if(d>0)o.durationMs=d;
+  dl((o.comment.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')||'countdown')+'.json',JSON.stringify(o));
+}
+cdBuild();
+
+/* ================= REFERENCE PALETTES ================= */
+document.getElementById('palTable').innerHTML='<table><tr><th>theme</th><th>colour 1</th><th>colour 2</th><th>colour 3</th></tr>'+
+ THEME_NAMES.map(t=>`<tr><td>${t}</td>`+THEMES[t].map(c=>
+   `<td><span class="swatch" style="background:rgb(${c[0]},${c[1]},${c[2]})"></span> ${c.join(', ')}</td>`).join('')+'</tr>').join('')+'</table>';
+
+/* init */
+scBuildPal(); scRebuild();
+</script>
+</body>
+</html>
