@@ -28,6 +28,12 @@ const uint8_t Countdown::DIGIT_3X5[][5] = {
   {0b111, 0b101, 0b111, 0b001, 0b111}  // 9
 };
 
+// V16.4.13 - 3x5 unit labels (D/H/M/S), same bit layout as DIGIT_3X5
+const uint8_t Countdown::LABEL_D[5] = {0b110, 0b101, 0b101, 0b101, 0b110};
+const uint8_t Countdown::LABEL_H[5] = {0b101, 0b101, 0b111, 0b101, 0b101};
+const uint8_t Countdown::LABEL_M[5] = {0b101, 0b111, 0b111, 0b101, 0b101};
+const uint8_t Countdown::LABEL_S[5] = {0b111, 0b100, 0b111, 0b001, 0b111};
+
 Countdown::Countdown(MatrixDisplay* display, ThemeManager* themeMgr)
     : disp(display), themes(themeMgr), targetTime(0),
       lastUpdate(0), flashState(false), lastFlash(0) {
@@ -160,44 +166,42 @@ void Countdown::update() {
     if (minutes > 99) minutes = 99;
     if (seconds > 99) seconds = 99;
     
-    // V16.2.0-2026-01-10T18:05:00Z - Draw countdown boxes with theme colors
-    // Layout: Matrix 0 = Minutes & Seconds, Matrix 1 = Days & Hours
-    const int BOX_WIDTH = 9;
-    const int BOX_HEIGHT = 10;
-    const int GAP = 1;
-    const int Y_START = 8;
-    const int X_LEFT = GAP;
-    const int X_RIGHT = X_LEFT + BOX_WIDTH + GAP;  // V16.4.12 - fit two 9-wide boxes in a 20-wide window
-    
-    drawBox(0, X_LEFT, Y_START, 'M', minutes, isZero);
-    drawBox(0, X_RIGHT, Y_START, 'S', seconds, isZero);
-    drawBox(1, X_LEFT, Y_START, 'D', days, isZero);
-    drawBox(1, X_RIGHT, Y_START, 'H', hours, isZero);
-    
+    // V16.4.13 - One metric per row, unit label at the left, digits shifted right.
+    // Layout: Matrix 1 (LEFT window)  = Days    (top) / Hours   (bottom)
+    //         Matrix 0 (RIGHT window) = Minutes (top) / Seconds (bottom)
+    const int ROW1_Y = 4;
+    const int ROW2_Y = 14;
+
+    drawMetric(1, ROW1_Y, 'D', days,    isZero);
+    drawMetric(1, ROW2_Y, 'H', hours,   isZero);
+    drawMetric(0, ROW1_Y, 'M', minutes, isZero);
+    drawMetric(0, ROW2_Y, 'S', seconds, isZero);
+
     disp->show();
 }
 
-void Countdown::drawBox(int matrix, int x, int y, char label, long value, bool shouldFlash) {
-    // V16.2.0-2026-01-10T18:05:00Z - Theme colors: Header=color1, Box=color2, Numbers=color3
+void Countdown::drawMetric(int matrix, int y, char label, long value, bool shouldFlash) {
+    // V16.4.13 - Theme colors: Label=color1, Box=color2, Numbers=color3
     CRGB headerColor = themes->getColor1();
-    CRGB boxColor = themes->getColor2();
+    CRGB boxColor    = themes->getColor2();
     CRGB numberColor = themes->getColor3();
-    
-    // Draw box border
-    drawRectBorder(matrix, x, y, x + 8, y + 9, boxColor);
-    
-    // Draw label above box
-    int label_x = x + 4;
-    int label_y = y - 4;
-    drawLabel(matrix, label_x, label_y, label, headerColor);
-    
-    // Draw digits (only if not flashing or flash is ON)
+
+    const int LABEL_X  = 2;   // unit letter sits where the digits used to start
+    const int DIGIT1_X = 9;   // digits shifted right ~7 columns
+    const int DIGIT2_X = 13;
+
+    // Unit label (D/H/M/S)
+    drawLabel(matrix, LABEL_X, y, label, headerColor);
+
+    // Box border around the number field
+    drawRectBorder(matrix, DIGIT1_X - 2, y - 1, DIGIT2_X + 3, y + 5, boxColor);
+
+    // Digits (blank while flashing "00" past target)
     if (!shouldFlash || flashState) {
         int digit1 = (value / 10) % 10;
         int digit2 = value % 10;
-        
-        drawDigit(matrix, x + 1, 10, digit1, numberColor);
-        drawDigit(matrix, x + 5, 10, digit2, numberColor);
+        drawDigit(matrix, DIGIT1_X, y, digit1, numberColor);
+        drawDigit(matrix, DIGIT2_X, y, digit2, numberColor);
     }
 }
 
@@ -228,62 +232,21 @@ void Countdown::drawRectBorder(int matrix, int x1, int y1, int x2, int y2, CRGB 
 }
 
 void Countdown::drawLabel(int matrix, int x, int y, char label, CRGB color) {
-    // V16.2.0-2026-01-10T18:05:00Z - Draw 3-pixel wide labels (D, H, M, S)
-    switch(label) {
-        case 'D':
-            disp->setPixel(matrix, x-1, y, color);
-            disp->setPixel(matrix, x-1, y+1, color);
-            disp->setPixel(matrix, x-1, y+2, color);
-            disp->setPixel(matrix, x-1, y+3, color);
-            disp->setPixel(matrix, x-1, y+4, color);
-            disp->setPixel(matrix, x, y, color);
-            disp->setPixel(matrix, x+1, y+1, color);
-            disp->setPixel(matrix, x+1, y+2, color);
-            disp->setPixel(matrix, x+1, y+3, color);
-            disp->setPixel(matrix, x, y+4, color);
-            break;
-            
-        case 'H':
-            disp->setPixel(matrix, x-1, y, color);
-            disp->setPixel(matrix, x-1, y+1, color);
-            disp->setPixel(matrix, x-1, y+2, color);
-            disp->setPixel(matrix, x-1, y+3, color);
-            disp->setPixel(matrix, x-1, y+4, color);
-            disp->setPixel(matrix, x, y+2, color);
-            disp->setPixel(matrix, x+1, y, color);
-            disp->setPixel(matrix, x+1, y+1, color);
-            disp->setPixel(matrix, x+1, y+2, color);
-            disp->setPixel(matrix, x+1, y+3, color);
-            disp->setPixel(matrix, x+1, y+4, color);
-            break;
-            
-        case 'M':
-            disp->setPixel(matrix, x-1, y, color);
-            disp->setPixel(matrix, x-1, y+1, color);
-            disp->setPixel(matrix, x-1, y+2, color);
-            disp->setPixel(matrix, x-1, y+3, color);
-            disp->setPixel(matrix, x-1, y+4, color);
-            disp->setPixel(matrix, x, y+1, color);
-            disp->setPixel(matrix, x+1, y, color);
-            disp->setPixel(matrix, x+1, y+1, color);
-            disp->setPixel(matrix, x+1, y+2, color);
-            disp->setPixel(matrix, x+1, y+3, color);
-            disp->setPixel(matrix, x+1, y+4, color);
-            break;
-            
-        case 'S':
-            disp->setPixel(matrix, x-1, y, color);
-            disp->setPixel(matrix, x, y, color);
-            disp->setPixel(matrix, x+1, y, color);
-            disp->setPixel(matrix, x-1, y+1, color);
-            disp->setPixel(matrix, x-1, y+2, color);
-            disp->setPixel(matrix, x, y+2, color);
-            disp->setPixel(matrix, x+1, y+2, color);
-            disp->setPixel(matrix, x+1, y+3, color);
-            disp->setPixel(matrix, x-1, y+4, color);
-            disp->setPixel(matrix, x, y+4, color);
-            disp->setPixel(matrix, x+1, y+4, color);
-            break;
+    // V16.4.13 - Draw a 3x5 unit letter with its top-left at (x, y).
+    const uint8_t* glyph = nullptr;
+    switch (label) {
+        case 'D': glyph = LABEL_D; break;
+        case 'H': glyph = LABEL_H; break;
+        case 'M': glyph = LABEL_M; break;
+        case 'S': glyph = LABEL_S; break;
+        default:  return;
+    }
+    for (int row = 0; row < 5; row++) {
+        for (int col = 0; col < 3; col++) {
+            if (glyph[row] & (0b100 >> col)) {
+                disp->setPixel(matrix, x + col, y + row, color);
+            }
+        }
     }
 }
 

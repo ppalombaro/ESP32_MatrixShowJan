@@ -41,11 +41,16 @@ private:
     
     // V16.2.0-2026-01-10T18:05:00Z - 3x5 digit font
     static const uint8_t DIGIT_3X5[][5];
-    
+    // V16.4.13 - 3x5 unit-label glyphs
+    static const uint8_t LABEL_D[5];
+    static const uint8_t LABEL_H[5];
+    static const uint8_t LABEL_M[5];
+    static const uint8_t LABEL_S[5];
+
     void drawDigit(int matrix, int x, int y, int digit, CRGB color);
     void drawLabel(int matrix, int x, int y, char label, CRGB color);
     void drawRectBorder(int matrix, int x1, int y1, int x2, int y2, CRGB color);
-    void drawBox(int matrix, int x, int y, char label, long value, bool shouldFlash);
+    void drawMetric(int matrix, int y, char label, long value, bool shouldFlash);
     
     // V16.2.0-2026-01-10T18:30:00Z - Parse human-readable date to Unix timestamp
     time_t parseHumanDate(const String& dateStr);

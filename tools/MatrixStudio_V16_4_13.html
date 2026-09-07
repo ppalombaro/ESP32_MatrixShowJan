@@ -136,17 +136,20 @@
     <div class="ctl">
       <label>ink <input type="color" id="scInk" value="#ff3020"></label>
       <span class="pal" id="scPal"></span>
+      <button class="act ghost" id="scEraseBtn" onclick="scToggleErase()">Eraser: off</button>
+      <button class="act ghost" onclick="scUndoPop()">Undo</button>
       <button class="act ghost" onclick="scFill()">Fill target</button>
       <button class="act ghost" onclick="scClear()">Clear</button>
-      <span class="hint">click / drag = paint &middot; shift = erase</span>
+      <span class="hint">click / drag = paint &middot; hold shift = erase</span>
     </div>
+    <div class="hint" id="scEditPathLbl" style="margin-top:6px"></div>
   </div>
 
   <div class="win-wrap" id="scWins"></div>
 
   <div class="card" style="margin-top:14px">
     <div class="ctl">
-      <button class="act" onclick="scExport()">Download minified JSON</button>
+      <button class="act" onclick="scExport()">Save / download JSON</button>
       <button class="act ghost" onclick="scLoadFromText()">Load JSON from box</button>
       <button class="act ghost" onclick="scToText()">Scene &rarr; box</button>
       <span class="hint" id="scStat"></span>
@@ -204,9 +207,9 @@
 <!-- ================= COUNTDOWN ================= -->
 <section id="countdown" class="tab">
   <div class="card">
-    <p class="hint">Left window = Days / Hours, right window = Minutes / Seconds (firmware DIGIT_3&times;5).
-      <code>targetDate</code> is local wall-clock <code>"YYYY-MM-DD HH:MM:SS"</code> (DST-aware on device) or an epoch integer.
-      Header uses theme colour 1, digits colour 3.</p>
+    <p class="hint">LEFT window: <b>D</b> days row + <b>H</b> hours row. RIGHT window: <b>M</b> minutes + <b>S</b> seconds.
+      Unit letter (colour 1) sits at the left, box (colour 2), digits shifted right (colour 3).
+      <code>targetDate</code> is local wall-clock <code>"YYYY-MM-DD HH:MM:SS"</code> (DST-aware on device) or an epoch integer.</p>
     <div class="ctl">
       <label>targetDate <input id="cdDate" value="2026-11-28 12:00:00" style="width:190px"></label>
       <label>comment <input id="cdComment" value="OSU vs Michigan" style="width:200px"></label>
@@ -297,11 +300,15 @@ const F5x7={
  'V':[0x1F,0x20,0x40,0x20,0x1F],'W':[0x3F,0x40,0x38,0x40,0x3F],'X':[0x63,0x14,0x08,0x14,0x63],
  'Y':[0x07,0x08,0x70,0x08,0x07],'Z':[0x61,0x51,0x49,0x45,0x43],
 };
-/* 3x5 digits, bit0 = top */
-const D3x5={
- '0':[0x1F,0x11,0x1F],'1':[0x00,0x1F,0x00],'2':[0x1D,0x15,0x17],'3':[0x11,0x15,0x1F],
- '4':[0x07,0x04,0x1F],'5':[0x17,0x15,0x1D],'6':[0x1F,0x15,0x1D],'7':[0x01,0x01,0x1F],
- '8':[0x1F,0x15,0x1F],'9':[0x17,0x15,0x1F],':':[0x00,0x0A,0x00],' ':[0,0,0],
+/* 3x5 glyphs, row-major, bit 0b100 = left column (matches src/Countdown.cpp) */
+const G3x5={
+ '0':[0b111,0b101,0b101,0b101,0b111],'1':[0b010,0b110,0b010,0b010,0b111],
+ '2':[0b111,0b001,0b111,0b100,0b111],'3':[0b111,0b001,0b111,0b001,0b111],
+ '4':[0b101,0b101,0b111,0b001,0b001],'5':[0b111,0b100,0b111,0b001,0b111],
+ '6':[0b111,0b100,0b111,0b101,0b111],'7':[0b111,0b001,0b001,0b001,0b001],
+ '8':[0b111,0b101,0b111,0b101,0b111],'9':[0b111,0b101,0b111,0b001,0b111],
+ 'D':[0b110,0b101,0b101,0b101,0b110],'H':[0b101,0b101,0b111,0b101,0b101],
+ 'M':[0b101,0b111,0b111,0b101,0b101],'S':[0b111,0b100,0b111,0b001,0b111],
 };
 
 /* ---------------- tabs ---------------- */
@@ -400,10 +407,10 @@ async function ingest(fileList){
     }else if(path.startsWith('test/')){
       lib.test.set(path,{path,name:seg[seg.length-1].replace(/\.json$/,''),theme:'test',obj,text,bytes});
     }else{
-      // frame files inside an animation folder: index by bare name too
+      // frame file inside an animation folder: index by full path only (NOT byBare -
+      // many animations each have their own frame_00.json)
       const name=seg[seg.length-1].replace(/\.json$/,'');
-      if(obj&&obj.pixels) { lib.scenes.set(path,{path,name,theme:seg[1]||'?',obj,text,bytes,frame:true});
-        lib.byBare.set(name,path); }
+      if(obj&&Array.isArray(obj.pixels)) lib.scenes.set(path,{path,name,theme:seg[1]||'?',obj,text,bytes,frame:true});
     }
   }
   const n=lib.scenes.size+lib.anims.size+lib.scroll.size+lib.countdown.size+lib.test.size;
@@ -440,6 +447,9 @@ function showItem(key){
   const rep=document.getElementById('libReport');
   if(lib.scenes.has(key)){
     const s=lib.scenes.get(key);
+    const bar=document.createElement('div'); bar.className='ctl';
+    bar.innerHTML=`<button class="act" onclick="editInScene('${esc(key)}')">Edit in Scene Editor</button>`;
+    wrap.appendChild(bar);
     const gL=makeWin(wrap,'matrix1 (LEFT)',false,int(s.obj?.centerX,10),int(s.obj?.centerY,12));
     const gR=makeWin(wrap,'matrix0 (RIGHT)',false,int(s.obj?.centerX,10),int(s.obj?.centerY,12));
     const m0=resolveRef(s.obj?.matrix0Scene,key)||s.obj;
@@ -470,20 +480,20 @@ function showItem(key){
   }
 }
 
-/* resolve a "matrixNScene" / frame "scene" reference to a scene object */
-function resolveRef(ref,baseKey){
+/* resolve a "matrixNScene" / frame "scene" reference to a scene object.
+   baseFile = the timeline/scene FILE path the ref appears in (mirrors firmware resolveScenePath). */
+function resolveRef(ref,baseFile){
   if(!ref) return null;
   if(ref==='blank'||ref==='') return {pixels:[]};
-  let cand=ref.endsWith('.json')?ref:ref+'.json';
-  if(ref.indexOf('/')>=0){
-    if(lib.scenes.has(cand)) return lib.scenes.get(cand).obj;
-  }
-  // bare name: prefer same folder as base
-  const baseDir=(baseKey||'').split('/').slice(0,-1).join('/');
-  const local=baseDir+'/'+cand;
+  const cand=ref.endsWith('.json')?ref:ref+'.json';
+  // a ref containing "/" is used as-is (firmware behaviour)
+  if(ref.indexOf('/')>=0) return lib.scenes.has(cand)?lib.scenes.get(cand).obj:null;
+  // bare name: resolve against the ref's own folder ONLY (every animation has its own frame_00.json)
+  const baseDir=(baseFile||'').split('/').slice(0,-1).join('/');
+  const local=baseDir?baseDir+'/'+cand:cand;
   if(lib.scenes.has(local)) return lib.scenes.get(local).obj;
-  const bareName=ref.replace(/\.json$/,'').split('/').pop();
-  if(lib.byBare.has(bareName)) return lib.scenes.get(lib.byBare.get(bareName)).obj;
+  // last resort: a real scenes/<theme>/<name>.json by bare name (never a frame file)
+  if(lib.byBare.has(ref.replace(/\.json$/,''))) return lib.scenes.get(lib.byBare.get(ref.replace(/\.json$/,''))).obj;
   return null;
 }
 
@@ -519,12 +529,14 @@ function validateAnim(an){
   let out=line('d',`${an.folder}`);
   if(!Array.isArray(o.frames)||!o.frames.length) return out+line('e','frames[] missing or empty');
   out+=line('d',`${o.frames.length} frames, loop=${o.loop===true}`);
-  let sum=0,unresolved=[];
+  let sum=0,unresolved=[],legacyKey=0;
   o.frames.forEach((f,i)=>{
     sum+=int(f.durationMs,100);
     const refs = f.scene!==undefined ? [f.scene] : [f.matrix0Scene,f.matrix1Scene];
-    if(f.scene===undefined&&f.matrix0Scene===undefined&&f.matrix1Scene===undefined)
-      unresolved.push(`frame ${i}: no scene / matrix0Scene / matrix1Scene`);
+    if(f.scene===undefined&&f.matrix0Scene===undefined&&f.matrix1Scene===undefined){
+      if(f.sceneId!==undefined) legacyKey++;
+      else unresolved.push(`frame ${i}: no scene / matrix0Scene / matrix1Scene`);
+    }
     for(const r of refs){
       if(r===undefined||r===''||r==='blank') continue;
       if(!resolveRef(r,an.path)) unresolved.push(`frame ${i}: "${r}" unresolved`);
@@ -533,8 +545,9 @@ function validateAnim(an){
   const eff = (o.durationMs>0)?o.durationMs:sum;
   out+=line('d',`frame-duration sum = ${sum} ms; effective item duration = ${eff} ms`);
   if(o.durationMs>0&&o.durationMs!==sum) out+=line('d',`(durationMs override differs from frame sum - fine)`);
+  if(legacyKey) out+=line('e',`${legacyKey} frame(s) use the legacy "sceneId" key - V16.4 firmware reads "scene", so this animation renders BLANK. Rename the key to "scene".`);
   if(unresolved.length){ out+=line('e',`${unresolved.length} problem(s):`); unresolved.slice(0,12).forEach(u=>out+=line('e','  '+u)); }
-  else out+=line('o','all frame references resolve');
+  else if(!legacyKey) out+=line('o','all frame references resolve');
   // frame files size
   const dir=an.folder;
   let fb=an.bytes;
@@ -609,9 +622,24 @@ function verifyAll(){
 }
 
 /* ================= SCENE EDITOR ================= */
-let scPix=new Map(); // "x,y" -> [r,g,b]  (center-relative)
+let scPix=new Map();      // "x,y" -> [r,g,b]  (center-relative)
 let scGrids={};
+let scUndo=[];            // stack of Map snapshots
+let scEraseMode=false;
+let scEditPath=null;      // library path of the file being edited (for Save)
+let scSrcObj={};          // original object, so non-pixel fields survive a round-trip
 document.getElementById('scPal').innerHTML='';
+function scSnapshot(){ scUndo.push(new Map(scPix)); if(scUndo.length>80) scUndo.shift(); }
+function scUndoPop(){ const p=scUndo.pop(); if(p){ scPix=p; scRender(); } }
+function scToggleErase(){ scEraseMode=!scEraseMode;
+  document.getElementById('scEraseBtn').textContent='Eraser: '+(scEraseMode?'ON':'off');
+  document.getElementById('scEraseBtn').classList.toggle('danger',scEraseMode); }
+function scSetEditPath(p){
+  scEditPath=p||null;
+  document.getElementById('scEditPathLbl').innerHTML = p
+    ? `editing <b>${esc(p)}</b> &mdash; "Download" saves as <b>${esc(p.split('/').pop())}</b>, drop it back into that folder`
+    : '';
+}
 function scBuildPal(){
   const th=document.getElementById('scTheme').value;
   document.getElementById('scPal').innerHTML=(THEMES[th]||[]).map((c,i)=>
@@ -633,9 +661,10 @@ function bindPaint(g){
   const handler=e=>{
     if(e.buttons!==1&&e.type!=='mousedown') return;
     const c=e.target.closest('.px'); if(!c) return;
+    if(e.type==='mousedown') scSnapshot();
     const cx=int(scCX.value,10), cy=int(scCY.value,12);
     const rx=+c.dataset.x-cx, ry=+c.dataset.y-cy;
-    if(e.shiftKey) scPix.delete(rx+','+ry);
+    if(e.shiftKey||scEraseMode) scPix.delete(rx+','+ry);
     else { const k=hexRgb(document.getElementById('scInk').value); scPix.set(rx+','+ry,[k.r,k.g,k.b]); }
     scRender();
   };
@@ -655,37 +684,53 @@ function scRender(){
     `${scPix.size} pixels${off?`  |  ${off} off-panel (will be dropped)`:''}`;
 }
 function scFill(){
+  scSnapshot();
   const cx=int(scCX.value,10), cy=int(scCY.value,12);
   const k=hexRgb(document.getElementById('scInk').value);
   for(let y=0;y<H;y++)for(let x=0;x<W;x++) scPix.set((x-cx)+','+(y-cy),[k.r,k.g,k.b]);
   scRender();
 }
-function scClear(){scPix.clear();scRender();}
+function scClear(){scSnapshot();scPix.clear();scRender();}
 for(const id of ['scCX','scCY','scTarget']) document.getElementById(id).onchange=scRebuild;
 function scObject(){
-  const o={name:scName.value.trim(),theme:scTheme.value,
-    centerX:int(scCX.value,10),centerY:int(scCY.value,12),pixels:[]};
-  const d=int(scDur.value,0); if(d>0)o.durationMs=d;
+  const name=scName.value.trim();
+  const o={...scSrcObj, name, theme:scTheme.value,
+    centerX:int(scCX.value,10), centerY:int(scCY.value,12), pixels:[]};
+  if('sceneId' in scSrcObj) o.sceneId=name;
+  if('displayName' in scSrcObj) o.displayName=name;
+  const d=int(scDur.value,0); if(d>0) o.durationMs=d; else delete o.durationMs;
   for(const [k,[r,g,b]] of scPix){const [x,y]=k.split(',').map(Number);o.pixels.push({x,y,r,g,b});}
   o.pixels.sort((a,b)=>a.y-b.y||a.x-b.x);
+  if(o.metadata&&typeof o.metadata==='object') o.metadata.pixelCount=o.pixels.length;
   return o;
 }
 function scToText(){document.getElementById('scJson').value=pretty(scObject());}
 function scExport(){
   const o=scObject();
   if(!o.name) return alert('name required');
-  dl(o.name+'.json',JSON.stringify(o));
-  document.getElementById('scStat').textContent=`exported ${o.name}.json (${JSON.stringify(o).length} B)`;
+  const fname = scEditPath ? scEditPath.split('/').pop() : o.name+'.json';
+  dl(fname,JSON.stringify(o));
+  document.getElementById('scStat').textContent=`saved ${fname} (${JSON.stringify(o).length} B)`;
 }
-function scLoadFromText(){
-  let o; try{o=JSON.parse(document.getElementById('scJson').value);}catch(e){return alert('bad JSON: '+e.message);}
+function scLoad(o,path){
+  scSrcObj = JSON.parse(JSON.stringify(o||{}));
   scName.value=o.name||o.sceneId||o.displayName||'scene';
   if(THEMES[o.theme]) scTheme.value=o.theme;
   scCX.value=int(o.centerX,10); scCY.value=int(o.centerY,12);
   scDur.value=o.durationMs||'';
-  scPix.clear();
+  scPix.clear(); scUndo=[];
   for(const p of (o.pixels||[])) scPix.set(int(p.x,0)+','+int(p.y,0),[clamp(p.r),clamp(p.g),clamp(p.b)]);
+  scSetEditPath(path);
   scBuildPal(); scRebuild();
+}
+function scLoadFromText(){
+  let o; try{o=JSON.parse(document.getElementById('scJson').value);}catch(e){return alert('bad JSON: '+e.message);}
+  scLoad(o,null);
+}
+function editInScene(key){
+  const s=lib.scenes.get(key); if(!s||!s.obj) return alert('not a paintable scene');
+  scLoad(s.obj,key);
+  document.querySelector('nav button[data-tab="scene"]').click();
 }
 const pretty=o=>JSON.stringify(o,null,2);
 
@@ -704,16 +749,25 @@ function anBuildWins(){
 }
 function anLoad(key){
   anStop(); anBuildWins(); anCur=key;
+  const tlPath=lib.anims.get(key)?.path || key;   // resolve frame refs against the timeline's own folder
   let o; try{o=JSON.parse(document.getElementById('anJson').value);}catch(e){
     document.getElementById('anStat').textContent='bad timeline JSON'; return; }
-  anFrames=(o.frames||[]).map(f=>({
-    dur:int(f.durationMs,100),
-    both: f.scene!==undefined ? resolveRef(f.scene,key) : null,
-    m0: f.scene!==undefined ? null : resolveRef(f.matrix0Scene,key),
-    m1: f.scene!==undefined ? null : resolveRef(f.matrix1Scene,key),
-  }));
+  let miss=0;
+  anFrames=(o.frames||[]).map(f=>{
+    const s = f.scene!==undefined ? f.scene : undefined;
+    const both = s!==undefined ? resolveRef(s,tlPath) : null;
+    const m0 = s!==undefined ? null : resolveRef(f.matrix0Scene,tlPath);
+    const m1 = s!==undefined ? null : resolveRef(f.matrix1Scene,tlPath);
+    if(s!==undefined && !both) miss++;
+    if(s===undefined && f.matrix0Scene && !m0) miss++;
+    return {dur:int(f.durationMs,100),both,m0,m1};
+  });
   anLoop=o.loop===true; anIdx=0;
-  document.getElementById('anStat').textContent=`${anFrames.length} frames loaded, loop=${anLoop}`;
+  const key0=Object.keys((o.frames||[{}])[0]||{});
+  const badKey = key0.includes('sceneId') && !key0.includes('scene')
+    ? '  ⚠ frames use "sceneId" - V16.4 firmware reads "scene" (this animation renders BLANK on device)' : '';
+  document.getElementById('anStat').textContent=
+    `${anFrames.length} frames, loop=${anLoop}${miss?`, ${miss} unresolved refs`:''}${badKey}`;
   anShow(0);
 }
 function anReloadText(){ anLoad(anCur||document.getElementById('anSel').value); }
@@ -799,32 +853,38 @@ srBuild();
 let cdTimer=null, cdGrids={};
 function cdBuild(){
   const host=document.getElementById('cdWins'); host.innerHTML='';
-  cdGrids.L=makeWin(host,'matrix1 (LEFT)  -  Days / Hours',false);
-  cdGrids.R=makeWin(host,'matrix0 (RIGHT)  -  Minutes / Seconds',false);
+  cdGrids.L=makeWin(host,'matrix1 (LEFT)  -  D / H rows',false);
+  cdGrids.R=makeWin(host,'matrix0 (RIGHT)  -  M / S rows',false);
 }
-function cdDigits(g,text,x0,y0,c){
-  let x=x0;
-  for(const ch of text){ const glyph=D3x5[ch]||D3x5[' '];
-    for(let cx=0;cx<3;cx++){ for(let row=0;row<5;row++) if(glyph[cx]&(1<<row)) plot(g,x+cx,y0+row,c[0],c[1],c[2]); }
-    x+=4;
-  }
+function glyph3x5(g,ch,x0,y0,c){
+  const gl=G3x5[ch]; if(!gl) return;
+  for(let row=0;row<5;row++) for(let col=0;col<3;col++)
+    if(gl[row]&(0b100>>col)) plot(g,x0+col,y0+row,c[0],c[1],c[2]);
+}
+function cdRect(g,x1,y1,x2,y2,c){
+  for(let x=x1;x<=x2;x++){plot(g,x,y1,c[0],c[1],c[2]);plot(g,x,y2,c[0],c[1],c[2]);}
+  for(let y=y1+1;y<y2;y++){plot(g,x1,y,c[0],c[1],c[2]);plot(g,x2,y,c[0],c[1],c[2]);}
+}
+function cdMetric(g,y,label,val,pal){
+  const p2=String(Math.min(99,val)).padStart(2,'0');
+  glyph3x5(g,label,2,y,pal[0]);          // unit letter, colour 1
+  cdRect(g,7,y-1,16,y+5,pal[1]);         // box, colour 2
+  glyph3x5(g,p2[0],9,y,pal[2]);          // digits shifted right, colour 3
+  glyph3x5(g,p2[1],13,y,pal[2]);
 }
 function cdFrame(){
   const t=parseTarget(document.getElementById('cdDate').value);
   const pal=THEMES[document.getElementById('cdTheme').value]||THEMES.off;
   clearGrid(cdGrids.L); clearGrid(cdGrids.R);
-  if(!t){ cdDigits(cdGrids.L,'ERR',2,10,pal[0]); return; }
+  if(!t){ glyph3x5(cdGrids.L,'S',2,10,pal[0]); return; }
   let s=Math.max(0,Math.floor((t-Date.now())/1000));
   const d=Math.floor(s/86400); s-=d*86400;
   const h=Math.floor(s/3600); s-=h*3600;
   const m=Math.floor(s/60); s-=m*60;
-  const p2=n=>String(n).padStart(2,'0');
-  // header pips in colour 1, digits colour 3
-  for(let x=2;x<18;x++){ plot(cdGrids.L,x,1,pal[0][0],pal[0][1],pal[0][2]); plot(cdGrids.R,x,1,pal[0][0],pal[0][1],pal[0][2]); }
-  cdDigits(cdGrids.L,p2(Math.min(99,d)),4,5,pal[2]);
-  cdDigits(cdGrids.L,p2(h),4,15,pal[2]);
-  cdDigits(cdGrids.R,p2(m),4,5,pal[2]);
-  cdDigits(cdGrids.R,p2(s),4,15,pal[2]);
+  cdMetric(cdGrids.L,4,'D',d,pal);
+  cdMetric(cdGrids.L,14,'H',h,pal);
+  cdMetric(cdGrids.R,4,'M',m,pal);
+  cdMetric(cdGrids.R,14,'S',s,pal);
 }
 function cdStart(){
   cdStop(); cdBuild();
