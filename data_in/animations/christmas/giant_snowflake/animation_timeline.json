@@ -1,0 +1,1 @@
+﻿{"displayName":"Giant Snowflake","version":"16.4","theme":"christmas","loop":true,"durationMs":2000,"scene":"animations/christmas/giant_snowflake/animation_timeline.json","frames":[{"scene":"giant_snowflake_f00","durationMs":1000},{"scene":"giant_snowflake_f01","durationMs":1000}]}
