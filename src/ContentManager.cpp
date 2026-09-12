@@ -676,14 +676,17 @@ void ContentManager::addContent(const String& name, const String& theme, Content
 
 void ContentManager::registerProceduralAnimations() {
     Logger::instance().log("[ContentManager] Registering procedural animations...");
-    
-    // V16.2.0-2026-01-10T18:12:00Z - Register all procedural animations with correct themes
-    addContent("Chase", "christmas", CONTENT_PROCEDURAL, "");
-    addContent("Snowfall", "christmas", CONTENT_PROCEDURAL, "");
-    addContent("Snowfall Gentle", "christmas", CONTENT_PROCEDURAL, "");
-    addContent("Snowfall Heavy", "christmas", CONTENT_PROCEDURAL, "");
-    addContent("Sparkling Stars", "christmas", CONTENT_PROCEDURAL, "");
-    addContent("Color Wave", "osu", CONTENT_PROCEDURAL, "");
+
+    // V16.4.14 - Every procedural effect is theme-colored (reads ThemeManager
+    // palette at render time), so register each one under every real theme
+    // instead of pinning it to a single theme.
+    static const char* kProceduralThemes[] = {"christmas", "halloween", "thanksgiving", "newyear", "osu"};
+    static const char* kProceduralNames[]  = {"Chase", "Snowfall", "Snowfall Gentle", "Snowfall Heavy", "Sparkling Stars", "Color Wave"};
+    for (const char* theme : kProceduralThemes) {
+        for (const char* name : kProceduralNames) {
+            addContent(name, theme, CONTENT_PROCEDURAL, "");
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

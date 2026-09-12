@@ -4,9 +4,22 @@
 */
 
 #include "Animations.h"
+#include "ThemeManager.h"
+#include "Config.h"
 #include <FastLED.h>
 
 // V16.2.3-2026-01-10T21:40:00Z - Procedural animations in namespace (NOT a class!)
+
+extern ThemeManager themeManager;
+
+// V16.4.14 - Snow reads white for Christmas (its traditional look); every other
+// theme gets its own palette color instead.
+static CRGB snowColorForCurrentTheme() {
+    if (themeManager.getCurrentTheme() == THEME_CHRISTMAS) {
+        return CRGB(220, 240, 255);
+    }
+    return themeManager.getColor1();
+}
 
 namespace Animations {
 
@@ -23,7 +36,7 @@ void chase(MatrixDisplay* disp) {
     
     disp->clear();
     
-    CRGB colors[] = {CRGB::Red, CRGB::Green, CRGB::Cyan, CRGB::White};
+    CRGB colors[] = {themeManager.getColor1(), themeManager.getColor2(), themeManager.getColor3(), CRGB::White};
     
     int spacing = 8;
     // V16.2.4-2026-01-10T21:52:00Z - Use Config.h COLS/ROWS macros
@@ -65,7 +78,7 @@ void chase(MatrixDisplay* disp) {
 void snowfall(MatrixDisplay* disp) {
     // V16.2.4-2026-01-10T21:52:00Z - Use Config.h COLS/ROWS macros
     const int MAX_FLAKES = 50;
-    const CRGB SNOW_WHITE = CRGB(220, 240, 255);
+    const CRGB SNOW_WHITE = snowColorForCurrentTheme();
     
     static struct Flake {
         float x, y, dx, dy;
@@ -119,7 +132,7 @@ void snowfall(MatrixDisplay* disp) {
 void snowfallGentle(MatrixDisplay* disp) {
     // V16.2.4-2026-01-10T21:52:00Z - Use Config.h COLS/ROWS macros
     const int MAX_FLAKES = 30;
-    const CRGB SNOW_WHITE = CRGB(220, 240, 255);
+    const CRGB SNOW_WHITE = snowColorForCurrentTheme();
     
     static struct Flake {
         float x, y, dx, dy;
@@ -173,7 +186,7 @@ void snowfallGentle(MatrixDisplay* disp) {
 void snowfallHeavy(MatrixDisplay* disp) {
     // V16.2.4-2026-01-10T21:52:00Z - Use Config.h COLS/ROWS macros
     const int MAX_FLAKES = 80;
-    const CRGB SNOW_WHITE = CRGB(220, 240, 255);
+    const CRGB SNOW_WHITE = snowColorForCurrentTheme();
     
     static struct Flake {
         float x, y, dx, dy;
@@ -236,23 +249,24 @@ void sparklingStars(MatrixDisplay* disp) {
     
     int cx = COLS / 2;
     int cy = ROWS / 2;
-    
+    CRGB starColor = themeManager.getColor1();
+
     for (int matrix = 0; matrix < 2; matrix++) {
         // Main star lines
         for (int i = -8; i <= 8; i++) {
             if (cx + i >= 0 && cx + i < COLS) {
-                disp->setPixel(matrix, cx + i, cy, CRGB::Yellow);
+                disp->setPixel(matrix, cx + i, cy, starColor);
             }
             if (cy + i >= 0 && cy + i < ROWS) {
-                disp->setPixel(matrix, cx, cy + i, CRGB::Yellow);
+                disp->setPixel(matrix, cx, cy + i, starColor);
             }
         }
-        
+
         // Diagonal lines
         for (int i = -6; i <= 6; i++) {
             if (cx + i >= 0 && cx + i < COLS && cy + i >= 0 && cy + i < ROWS) {
-                disp->setPixel(matrix, cx + i, cy + i, CRGB::Yellow);
-                disp->setPixel(matrix, cx + i, cy - i, CRGB::Yellow);
+                disp->setPixel(matrix, cx + i, cy + i, starColor);
+                disp->setPixel(matrix, cx + i, cy - i, starColor);
             }
         }
         
@@ -269,25 +283,38 @@ void sparklingStars(MatrixDisplay* disp) {
     disp->show();
 }
 
-// V16.4.12 - Color Wave: horizontal rainbow sweep across both windows
+// V16.4.14 - Color Wave: horizontal sweep cycling through the active theme's palette
 void colorWave(MatrixDisplay* disp) {
     static unsigned long lastUpdate = 0;
-    static uint8_t hueOffset = 0;
+    static uint8_t waveOffset = 0;
 
     unsigned long now = millis();
     if (now - lastUpdate < 40) return;
     lastUpdate = now;
 
+    CRGB c1 = themeManager.getColor1();
+    CRGB c2 = themeManager.getColor2();
+    CRGB c3 = themeManager.getColor3();
+
     for (int m = 0; m < 2; m++) {
         for (int x = 0; x < COLS; x++) {
-            CRGB c = CHSV(hueOffset + (m * COLS + x) * 4, 255, 255);
+            uint8_t pos = waveOffset + (m * COLS + x) * 4;
+            // Three 85-wide bands: c1->c2->c3->c1, blended smoothly across each band.
+            CRGB c;
+            if (pos < 85) {
+                c = blend(c1, c2, pos * 3);
+            } else if (pos < 170) {
+                c = blend(c2, c3, (pos - 85) * 3);
+            } else {
+                c = blend(c3, c1, (pos - 170) * 3);
+            }
             for (int y = 0; y < ROWS; y++) {
                 disp->setPixel(m, x, y, c);
             }
         }
     }
 
-    hueOffset += 3;
+    waveOffset += 3;
     disp->show();
 }
 
