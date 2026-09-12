@@ -31,7 +31,7 @@ try:
                 print(f"Processing: {rel_path}")
 
                 try:
-                    with open(src_path, "r", encoding="utf-8") as fh:
+                    with open(src_path, "r", encoding="utf-8-sig") as fh:
                         data = json.load(fh)
                 except json.JSONDecodeError as e:
                     print(f"\nJSON ERROR in {rel_path}: line {e.lineno}, column {e.colno}: {e.msg}")
