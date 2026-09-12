@@ -141,6 +141,8 @@ private:
     void saveScheduleToNVS();
     void loadEligibleFromNVS();
     void saveEligibleToNVS();
+    void loadRandomFromNVS();
+    void saveRandomToNVS();
 
     // Content registration
     void addContent(const String& name, const String& theme, ContentType type, const String& path, unsigned long duration, const String& m0, const String& m1, const String& m2);

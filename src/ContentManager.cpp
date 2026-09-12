@@ -60,6 +60,7 @@ void ContentManager::begin(MatrixDisplay* display) {
     // V16.4.13 - restore persisted schedule + eligible-content state
     loadScheduleFromNVS();
     loadEligibleFromNVS();
+    loadRandomFromNVS();  // V16.4.14 - restore random mode/interval/filter across restarts
 
     Logger::instance().log("[ContentManager] Total content: " + String(contentRegistry.size()));
 }
@@ -878,6 +879,7 @@ void ContentManager::enableRandomMode(bool enable) {
     } else {
         Logger::instance().log("[ContentManager] Random mode DISABLED");
     }
+    saveRandomToNVS();
 }
 
 bool ContentManager::isRandomModeEnabled() const {
@@ -887,6 +889,7 @@ bool ContentManager::isRandomModeEnabled() const {
 void ContentManager::setRandomInterval(unsigned long intervalMs) {
     randomIntervalMs = intervalMs;
     Logger::instance().log("[ContentManager] Random interval: " + String(intervalMs) + "ms");
+    saveRandomToNVS();
 }
 
 unsigned long ContentManager::getRandomInterval() const {
@@ -900,10 +903,34 @@ void ContentManager::setRandomThemeFilter(const String& theme) {
     } else {
         Logger::instance().log("[ContentManager] Random filter: ALL THEMES");
     }
+    saveRandomToNVS();
 }
 
 String ContentManager::getRandomThemeFilter() const {
     return randomThemeFilter;
+}
+
+void ContentManager::loadRandomFromNVS() {
+    Preferences p;
+    p.begin(PREFS_NAMESPACE, true);
+    randomModeEnabled = p.getBool("rnd_en", false);
+    randomIntervalMs  = p.getULong("rnd_ms", 4000);
+    randomThemeFilter = p.getString("rnd_flt", "");
+    p.end();
+    if (randomModeEnabled) lastRandomChange = millis();
+    Logger::instance().log("[ContentManager] Random settings loaded: " +
+        String(randomModeEnabled ? "ENABLED" : "disabled") + ", " +
+        String(randomIntervalMs) + "ms, filter=" +
+        (randomThemeFilter.length() > 0 ? randomThemeFilter : String("ALL")));
+}
+
+void ContentManager::saveRandomToNVS() {
+    Preferences p;
+    p.begin(PREFS_NAMESPACE, false);
+    p.putBool("rnd_en", randomModeEnabled);
+    p.putULong("rnd_ms", randomIntervalMs);
+    p.putString("rnd_flt", randomThemeFilter);
+    p.end();
 }
 
 void ContentManager::updateRandomMode() {
