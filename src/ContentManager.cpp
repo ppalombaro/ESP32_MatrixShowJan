@@ -779,6 +779,7 @@ String ContentManager::contentKey(const ContentItem& item) {
 
 bool ContentManager::isEligible(const ContentItem& item) const {
     if (item.type == CONTENT_TEST) return false;
+    if (item.theme == "test") return false;
     String key = contentKey(item);
     for (const auto& k : excludedKeys) {
         if (k == key) return false;
@@ -914,26 +915,80 @@ void ContentManager::updateRandomMode() {
 }
 
 void ContentManager::selectRandomContent() {
-    std::vector<ContentItem> pool;
-    
-    // Build pool (test patterns + user-excluded items skipped)
-    for (const auto& item : contentRegistry) {
-        if (!isEligible(item)) continue;
-
-        if (randomThemeFilter.length() > 0) {
-            if (item.theme == randomThemeFilter) {
-                pool.push_back(item);
-            }
-        } else {
-            pool.push_back(item);
+    // V16.4.14 - Pick a theme first (never mix themes across matrices), then
+    // pick a content TYPE from whatever's actually eligible within that theme
+    // (scene / animation / scroll / countdown / procedural), then resolve it:
+    // scenes randomize each matrix independently (duplicates allowed); every
+    // other type is a single self-contained pick played as a whole, same as
+    // it always has been.
+    std::vector<String> themes;
+    if (randomThemeFilter.length() > 0) {
+        themes.push_back(randomThemeFilter);
+    } else {
+        for (const auto& item : contentRegistry) {
+            if (!isEligible(item)) continue;
+            bool seen = false;
+            for (const auto& t : themes) { if (t == item.theme) { seen = true; break; } }
+            if (!seen) themes.push_back(item.theme);
         }
     }
-    
-    if (pool.size() == 0) return;
-    
-    // Pick random
-    int idx = random(pool.size());
-    renderContent(pool[idx].id);
-    
-    Logger::instance().log("[ContentManager] Random: " + pool[idx].name);
+    if (themes.empty()) return;
+    String chosenTheme = themes[random(themes.size())];
+
+    std::vector<ContentItem> themePool;
+    for (const auto& item : contentRegistry) {
+        if (!isEligible(item)) continue;
+        if (item.theme == chosenTheme) themePool.push_back(item);
+    }
+    if (themePool.empty()) return;
+
+    // Bucket the theme's eligible content by type, keeping only non-empty buckets.
+    static const ContentType kTypes[] = {
+        CONTENT_SCENE, CONTENT_ANIMATION, CONTENT_SCROLL, CONTENT_COUNTDOWN, CONTENT_PROCEDURAL
+    };
+    std::vector<ContentType> availableTypes;
+    for (ContentType t : kTypes) {
+        for (const auto& item : themePool) {
+            if (item.type == t) { availableTypes.push_back(t); break; }
+        }
+    }
+    if (availableTypes.empty()) return;
+    ContentType chosenType = availableTypes[random(availableTypes.size())];
+
+    if (chosenType == CONTENT_SCENE) {
+        std::vector<ContentItem> scenePool;
+        for (const auto& item : themePool) {
+            if (item.type == CONTENT_SCENE) scenePool.push_back(item);
+        }
+
+        int idx0 = random(scenePool.size());
+        int idx1 = random(scenePool.size());  // independent draw - duplicates allowed
+        const ContentItem& s0 = scenePool[idx0];
+        const ContentItem& s1 = scenePool[idx1];
+
+        themeManager.setTheme(ThemeManager::themeNameToId(chosenTheme));
+        playFrames.clear();
+        proceduralName = "";
+        activeType = CONTENT_SCENE;
+        activePath = s0.path;
+        activeContentId = s0.id;
+
+        disp->clear();
+        drawSceneFile(0, s0.path, s0.path);
+        drawSceneFile(1, s1.path, s1.path);
+        disp->show();
+
+        Logger::instance().log("[ContentManager] Random (" + chosenTheme + " scene): " + s0.name + " | " + s1.name);
+        return;
+    }
+
+    // Animation / scroll / countdown / procedural - single pick, plays as a
+    // whole (its own timeline/logic already governs both matrices).
+    std::vector<ContentItem> typePool;
+    for (const auto& item : themePool) {
+        if (item.type == chosenType) typePool.push_back(item);
+    }
+    int idx = random(typePool.size());
+    renderContent(typePool[idx].id);
+    Logger::instance().log("[ContentManager] Random (" + chosenTheme + "): " + typePool[idx].name);
 }
