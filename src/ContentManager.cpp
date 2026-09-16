@@ -681,9 +681,18 @@ void ContentManager::registerProceduralAnimations() {
     // palette at render time), so register each one under every real theme
     // instead of pinning it to a single theme.
     static const char* kProceduralThemes[] = {"christmas", "halloween", "thanksgiving", "newyear", "osu"};
-    static const char* kProceduralNames[]  = {"Chase", "Snowfall", "Snowfall Gentle", "Snowfall Heavy", "Sparkling Stars", "Color Wave"};
+    static const char* kProceduralNames[]  = {"Chase", "Sparkling Stars", "Color Wave"};
     for (const char* theme : kProceduralThemes) {
         for (const char* name : kProceduralNames) {
+            addContent(name, theme, CONTENT_PROCEDURAL, "");
+        }
+    }
+
+    // Snowfall only makes sense in winter themes - restrict it to christmas/newyear.
+    static const char* kSnowThemes[] = {"christmas", "newyear"};
+    static const char* kSnowNames[]  = {"Snowfall", "Snowfall Gentle", "Snowfall Heavy"};
+    for (const char* theme : kSnowThemes) {
+        for (const char* name : kSnowNames) {
             addContent(name, theme, CONTENT_PROCEDURAL, "");
         }
     }

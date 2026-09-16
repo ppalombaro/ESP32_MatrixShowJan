@@ -83,40 +83,40 @@ void snowfall(MatrixDisplay* disp) {
     static struct Flake {
         float x, y, dx, dy;
     } flakes[2][MAX_FLAKES];
-    
+
     static bool initialized = false;
     static unsigned long lastUpdate = 0;
-    
+
     if (!initialized) {
         for (int m = 0; m < 2; m++) {
             for (int i = 0; i < MAX_FLAKES; i++) {
                 flakes[m][i].x = random(COLS);
                 flakes[m][i].y = random(ROWS);
                 flakes[m][i].dx = (random(200) - 100) / 100.0f;
-                flakes[m][i].dy = (random(50) + 50) / 100.0f;
+                flakes[m][i].dy = (random(25) + 25) / 100.0f;
             }
         }
         initialized = true;
     }
-    
+
     unsigned long now = millis();
     if (now - lastUpdate < 50) return;
     lastUpdate = now;
-    
+
     disp->clear();
-    
+
     for (int m = 0; m < 2; m++) {
         for (int i = 0; i < MAX_FLAKES; i++) {
             flakes[m][i].x += flakes[m][i].dx;
-            flakes[m][i].y -= flakes[m][i].dy;
-            
+            flakes[m][i].y += flakes[m][i].dy;
+
             if (flakes[m][i].x < 0) flakes[m][i].x = COLS - 1;
             if (flakes[m][i].x >= COLS) flakes[m][i].x = 0;
-            if (flakes[m][i].y < 0) {
-                flakes[m][i].y = ROWS - 1;
+            if (flakes[m][i].y >= ROWS) {
+                flakes[m][i].y = 0;
                 flakes[m][i].x = random(COLS);
             }
-            
+
             int x = (int)flakes[m][i].x;
             int y = (int)flakes[m][i].y;
             if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
@@ -124,7 +124,7 @@ void snowfall(MatrixDisplay* disp) {
             }
         }
     }
-    
+
     disp->show();
 }
 
@@ -147,27 +147,27 @@ void snowfallGentle(MatrixDisplay* disp) {
                 flakes[m][i].x = random(COLS);
                 flakes[m][i].y = random(ROWS);
                 flakes[m][i].dx = (random(100) - 50) / 100.0f;
-                flakes[m][i].dy = (random(30) + 20) / 100.0f;
+                flakes[m][i].dy = (random(15) + 10) / 100.0f;
             }
         }
         initialized = true;
     }
-    
+
     unsigned long now = millis();
     if (now - lastUpdate < 80) return;
     lastUpdate = now;
-    
+
     disp->clear();
-    
+
     for (int m = 0; m < 2; m++) {
         for (int i = 0; i < MAX_FLAKES; i++) {
             flakes[m][i].x += flakes[m][i].dx;
-            flakes[m][i].y -= flakes[m][i].dy;
-            
+            flakes[m][i].y += flakes[m][i].dy;
+
             if (flakes[m][i].x < 0) flakes[m][i].x = COLS - 1;
             if (flakes[m][i].x >= COLS) flakes[m][i].x = 0;
-            if (flakes[m][i].y < 0) {
-                flakes[m][i].y = ROWS - 1;
+            if (flakes[m][i].y >= ROWS) {
+                flakes[m][i].y = 0;
                 flakes[m][i].x = random(COLS);
             }
             
@@ -201,27 +201,27 @@ void snowfallHeavy(MatrixDisplay* disp) {
                 flakes[m][i].x = random(COLS);
                 flakes[m][i].y = random(ROWS);
                 flakes[m][i].dx = (random(300) - 150) / 100.0f;
-                flakes[m][i].dy = (random(80) + 80) / 100.0f;
+                flakes[m][i].dy = (random(40) + 40) / 100.0f;
             }
         }
         initialized = true;
     }
-    
+
     unsigned long now = millis();
     if (now - lastUpdate < 30) return;
     lastUpdate = now;
-    
+
     disp->clear();
-    
+
     for (int m = 0; m < 2; m++) {
         for (int i = 0; i < MAX_FLAKES; i++) {
             flakes[m][i].x += flakes[m][i].dx;
-            flakes[m][i].y -= flakes[m][i].dy;
-            
+            flakes[m][i].y += flakes[m][i].dy;
+
             if (flakes[m][i].x < 0) flakes[m][i].x = COLS - 1;
             if (flakes[m][i].x >= COLS) flakes[m][i].x = 0;
-            if (flakes[m][i].y < 0) {
-                flakes[m][i].y = ROWS - 1;
+            if (flakes[m][i].y >= ROWS) {
+                flakes[m][i].y = 0;
                 flakes[m][i].x = random(COLS);
             }
             
@@ -292,9 +292,18 @@ void colorWave(MatrixDisplay* disp) {
     if (now - lastUpdate < 40) return;
     lastUpdate = now;
 
-    CRGB c1 = themeManager.getColor1();
-    CRGB c2 = themeManager.getColor2();
-    CRGB c3 = themeManager.getColor3();
+    CRGB c1, c2, c3;
+    if (themeManager.getCurrentTheme() == THEME_HALLOWEEN) {
+        // V16.4.14 - Spookier wave: stay in the blue/purple range instead of the
+        // theme's usual orange/purple/green palette.
+        c1 = CRGB(0, 60, 255);   // electric blue
+        c2 = CRGB(138, 0, 226);  // vivid purple
+        c3 = CRGB(60, 0, 130);   // deep indigo
+    } else {
+        c1 = themeManager.getColor1();
+        c2 = themeManager.getColor2();
+        c3 = themeManager.getColor3();
+    }
 
     for (int m = 0; m < 2; m++) {
         for (int x = 0; x < COLS; x++) {
@@ -307,6 +316,9 @@ void colorWave(MatrixDisplay* disp) {
                 c = blend(c2, c3, (pos - 85) * 3);
             } else {
                 c = blend(c3, c1, (pos - 170) * 3);
+            }
+            if (themeManager.getCurrentTheme() == THEME_CHRISTMAS) {
+                c.nscale8(230); // V16.4.14 - Christmas color wave dimmed 10%
             }
             for (int y = 0; y < ROWS; y++) {
                 disp->setPixel(m, x, y, c);
