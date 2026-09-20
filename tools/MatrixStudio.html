@@ -140,6 +140,7 @@
       <button class="act ghost" onclick="scUndoPop()">Undo</button>
       <button class="act ghost" onclick="scFill()">Fill target</button>
       <button class="act ghost" onclick="scClear()">Clear</button>
+      <button class="act ghost" onclick="scDuplicate()">Duplicate as new&hellip;</button>
       <span class="hint">click / drag = paint &middot; hold shift = erase</span>
     </div>
     <div class="hint" id="scEditPathLbl" style="margin-top:6px"></div>
@@ -722,6 +723,15 @@ function scLoad(o,path){
   for(const p of (o.pixels||[])) scPix.set(int(p.x,0)+','+int(p.y,0),[clamp(p.r),clamp(p.g),clamp(p.b)]);
   scSetEditPath(path);
   scBuildPal(); scRebuild();
+}
+function scDuplicate(){
+  const base=(scName.value||'scene').trim();
+  const name=prompt('New scene name:',base+'_copy');
+  if(!name) return;
+  scEditPath=null; // duplicate is a new file, not a save-over
+  scName.value=name;
+  document.getElementById('scStat').textContent=`duplicated as "${name}" (unsaved - use Save/download)`;
+  scSetEditPath(null);
 }
 function scLoadFromText(){
   let o; try{o=JSON.parse(document.getElementById('scJson').value);}catch(e){return alert('bad JSON: '+e.message);}

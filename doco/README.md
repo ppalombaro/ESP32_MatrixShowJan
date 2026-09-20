@@ -126,7 +126,7 @@ ESP32_MatrixShow/
 │
 ├── tools/
 │   ├── FFAT/                minify_json.py, build_simple_storage.py, generate_manifest.py
-│   └── LED_Content_Studio_V16_4_10.html   browser scene/animation editor
+│   └── MatrixStudio.html     browser scene/animation/scroll/countdown editor + library validator
 │
 ├── SETUP_GUIDE.md / QUICK_REFERENCE.md   PlatformIO migration notes + shortcuts
 └── doco/                    <-- authoritative docs (this folder)
@@ -200,4 +200,4 @@ JSON schemas.
 - [InstallationGuide.md](InstallationGuide.md) — toolchain, build, flash firmware + data, first boot
 - [SPIFFS_UPLOAD_GUIDE.md](SPIFFS_UPLOAD_GUIDE.md) — the custom flash-storage pipeline and JSON schemas
 - [ARCHITECTURE.md](ARCHITECTURE.md) — module reference, web API, known gaps
-- `tools/LED_Content_Studio_V16_4_10.html` — browser content editor
+- `tools/MatrixStudio.html` — browser content editor (scenes, animations, scroll, countdown) + library validator

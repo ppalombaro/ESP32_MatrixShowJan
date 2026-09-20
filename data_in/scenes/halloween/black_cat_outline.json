@@ -3,8 +3,8 @@
   "displayName": "black_cat_outline",
   "theme": "halloween",
   "upsize": false,
-  "centerX": 10,
-  "centerY": 12,
+  "centerX": 8,
+  "centerY": 13,
   "pixels": [
     {
       "x": -2,
@@ -689,6 +689,6 @@
   "version": "16.4",
   "metadata": {
     "pixelCount": 97,
-    "correctedBy": "V16.4.14-outline-set"
+    "correctedBy": "CLAUDE-2026-09-20-shift-left2-down1"
   }
 }

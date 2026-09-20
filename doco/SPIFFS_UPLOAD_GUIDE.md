@@ -189,7 +189,7 @@ solid red fill on both windows (held until replaced). Same as `/api/test`.
 
 ## Authoring workflow
 
-1. Open `tools/LED_Content_Studio_V16_4_10.html` in a browser. Design at
+1. Open `tools/MatrixStudio.html` in a browser. Design at
    **20 wide × 25 tall**, export JSON.
 2. Save into the right folder (`data_in/scenes/<theme>/…`, etc).
 3. Re-pack + flash: `json_datain_2_FFAT.bat` (or the manual steps).
