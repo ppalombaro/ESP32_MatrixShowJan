@@ -200,8 +200,8 @@ void snowfallHeavy(MatrixDisplay* disp) {
             for (int i = 0; i < MAX_FLAKES; i++) {
                 flakes[m][i].x = random(COLS);
                 flakes[m][i].y = random(ROWS);
-                flakes[m][i].dx = (random(300) - 150) / 100.0f;
-                flakes[m][i].dy = (random(40) + 40) / 100.0f;
+                flakes[m][i].dx = (random(150) - 75) / 100.0f;
+                flakes[m][i].dy = (random(20) + 20) / 100.0f;
             }
         }
         initialized = true;
