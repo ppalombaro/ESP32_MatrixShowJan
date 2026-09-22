@@ -7,11 +7,11 @@
   "frames": [
     {
       "matrix0Scene": "scenes/halloween/halloween_bat.json",
-      "matrix1Scene": "scenes/halloween/halloween_pumpkin.json",
+      "matrix1Scene": "scenes/halloween/jackolantern_outline.json",
       "durationMs": 5000
     },
     {
-      "matrix0Scene": "scenes/halloween/halloween_pumpkin.json",
+      "matrix0Scene": "scenes/halloween/jackolantern_outline.json",
       "matrix1Scene": "scenes/halloween/halloween_bat.json",
       "durationMs": 5000
     },
