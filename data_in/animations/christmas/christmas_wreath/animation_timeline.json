@@ -1,0 +1,1 @@
+﻿{"displayName":"Christmas Wreath","version":"16.4","theme":"christmas","loop":true,"durationMs":3000,"scene":"animations/christmas/christmas_wreath/animation_timeline.json","frames":[{"scene":"christmas_wreath_f00","durationMs":1000},{"scene":"christmas_wreath_f01","durationMs":1000},{"scene":"christmas_wreath_f02","durationMs":1000}]}
