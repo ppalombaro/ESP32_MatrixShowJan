@@ -26,6 +26,8 @@ private:
     ThemeManager* themes = nullptr;
     MatrixDisplay* display = nullptr;
     WebActions* actions = nullptr;  // V16.1.3-2026-01-09T05:35:00Z
+    bool uploadAuthOk = false;      // V16.4.14 - gates the current /update file upload
 
     void setupRoutes();
+    void setupOtaRoute();           // V16.4.14 - web-based firmware upload, independent of ContentManager state
 };

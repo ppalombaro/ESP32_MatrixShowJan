@@ -320,8 +320,16 @@ void colorWave(MatrixDisplay* disp) {
             if (themeManager.getCurrentTheme() == THEME_CHRISTMAS) {
                 c.nscale8(230); // V16.4.14 - Christmas color wave dimmed 10%
             }
+            // V16.4.15 - Power: light only every other LED instead of the full
+            // column. Even columns light even rows, odd columns light odd rows,
+            // so roughly half the panel is lit at once (was all 500/matrix,
+            // continuously, at ~40ms refresh) instead of a sustained full-panel draw.
+            // colorWave never clears the display, so the skipped half must be
+            // explicitly written black (truly off, draws no current) rather than
+            // left alone, or it would keep showing whatever content ran before.
             for (int y = 0; y < ROWS; y++) {
-                disp->setPixel(m, x, y, c);
+                bool lit = (y % 2) == (x % 2);
+                disp->setPixel(m, x, y, lit ? c : CRGB::Black);
             }
         }
     }

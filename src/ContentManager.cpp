@@ -245,7 +245,21 @@ bool ContentManager::readCustomStorage() {
                 json_content[saved_size] = '\0';
                 DynamicJsonDocument doc(1024);
                 if (deserializeJson(doc, json_content) == DeserializationError::Ok) {
-                    unsigned long duration = doc["durationMs"] | 5000;
+                    // V16.4.15 - When durationMs isn't set explicitly, compute the time
+                    // needed for one full scroll pass instead of a flat 5s fallback, so
+                    // random mode doesn't cut long messages off mid-scroll (see Scroll::update:
+                    // starts at COLS*2 off the right edge, ends when it clears totalWidth).
+                    unsigned long duration = doc["durationMs"] | 0;
+                    if (duration == 0) {
+                        String text = doc["text"] | "";
+                        unsigned long speed = doc["speed"] | 50;
+                        unsigned long totalWidth = (unsigned long)text.length() * 6;
+                        // +1 tick: Scroll::update() draws at scrollPos, THEN decrements and
+                        // checks < -totalWidth, so the last draw happens at scrollPos ==
+                        // -totalWidth itself - one tick later than (COLS*2+totalWidth) alone.
+                        duration = (unsigned long)(COLS * 2 + totalWidth + 1) * speed;
+                        if (duration == 0) duration = 5000;  // Final fallback
+                    }
                     addContent(filename, theme, CONTENT_SCROLL, path, duration, path, path, "");
                 } else {
                     addContent(filename, theme, CONTENT_SCROLL, path);
@@ -947,10 +961,21 @@ void ContentManager::saveRandomToNVS() {
 
 void ContentManager::updateRandomMode() {
     unsigned long now = millis();
-    if (now - lastRandomChange >= randomIntervalMs) {
-        selectRandomContent();
-        lastRandomChange = now;
+    unsigned long elapsed = now - lastRandomChange;
+    if (elapsed < randomIntervalMs) return;
+
+    // V16.4.15 - Don't cut an animation or scroll off mid-cycle: honor its own
+    // computed duration (one full timeline loop / one full scroll pass) as a
+    // minimum, even when that's longer than randomIntervalMs. Scenes, countdowns
+    // and procedurals have no natural "complete" point, so they still just obey
+    // the interval.
+    if (activeType == CONTENT_ANIMATION || activeType == CONTENT_SCROLL) {
+        const ContentItem* active = getContentById(activeContentId);
+        if (active && elapsed < active->durationMs) return;
     }
+
+    selectRandomContent();
+    lastRandomChange = now;
 }
 
 void ContentManager::selectRandomContent() {
@@ -981,13 +1006,30 @@ void ContentManager::selectRandomContent() {
     }
     if (themePool.empty()) return;
 
+    // Repeat cooldown: an item may not reappear until up to 4 other picks (of any
+    // type) have shown, scaled down for small pools. If that leaves nothing to
+    // choose from, forget the oldest picks until something is available.
+    size_t cooldown = themePool.size() > 1 ? themePool.size() - 1 : 0;
+    if (cooldown > 4) cooldown = 4;
+    while (recentPicks.size() > cooldown) recentPicks.erase(recentPicks.begin());
+    std::vector<ContentItem> freshPool;
+    for (;;) {
+        freshPool.clear();
+        for (const auto& item : themePool) {
+            if (!wasRecentlyShown(item.id)) freshPool.push_back(item);
+        }
+        if (!freshPool.empty() || recentPicks.empty()) break;
+        recentPicks.erase(recentPicks.begin());
+    }
+    if (freshPool.empty()) freshPool = themePool;
+
     // Bucket the theme's eligible content by type, keeping only non-empty buckets.
     static const ContentType kTypes[] = {
         CONTENT_SCENE, CONTENT_ANIMATION, CONTENT_SCROLL, CONTENT_COUNTDOWN, CONTENT_PROCEDURAL
     };
     std::vector<ContentType> availableTypes;
     for (ContentType t : kTypes) {
-        for (const auto& item : themePool) {
+        for (const auto& item : freshPool) {
             if (item.type == t) { availableTypes.push_back(t); break; }
         }
     }
@@ -996,7 +1038,7 @@ void ContentManager::selectRandomContent() {
 
     if (chosenType == CONTENT_SCENE) {
         std::vector<ContentItem> scenePool;
-        for (const auto& item : themePool) {
+        for (const auto& item : freshPool) {
             if (item.type == CONTENT_SCENE) scenePool.push_back(item);
         }
 
@@ -1018,16 +1060,27 @@ void ContentManager::selectRandomContent() {
         disp->show();
 
         Logger::instance().log("[ContentManager] Random (" + chosenTheme + " scene): " + s0.name + " | " + s1.name);
+        recentPicks.push_back({s0.id, s1.id});
         return;
     }
 
     // Animation / scroll / countdown / procedural - single pick, plays as a
     // whole (its own timeline/logic already governs both matrices).
     std::vector<ContentItem> typePool;
-    for (const auto& item : themePool) {
+    for (const auto& item : freshPool) {
         if (item.type == chosenType) typePool.push_back(item);
     }
     int idx = random(typePool.size());
     renderContent(typePool[idx].id);
     Logger::instance().log("[ContentManager] Random (" + chosenTheme + "): " + typePool[idx].name);
+    recentPicks.push_back({typePool[idx].id});
+}
+
+bool ContentManager::wasRecentlyShown(uint16_t id) const {
+    for (const auto& pick : recentPicks) {
+        for (uint16_t shown : pick) {
+            if (shown == id) return true;
+        }
+    }
+    return false;
 }

@@ -126,6 +126,8 @@ private:
     unsigned long randomIntervalMs = 4000;  // V16.4.8-2026-01-11T22:30:00Z - Default 4 seconds
     unsigned long lastRandomChange = 0;
     String randomThemeFilter = "";
+    std::vector<std::vector<uint16_t>> recentPicks;  // last random picks (ids shown), newest last
+    bool wasRecentlyShown(uint16_t id) const;
 
     // V16.4.13 - scheduler state (persisted to NVS namespace show-config)
     uint8_t runMode = 0;                    // RUN_MODE_MANUAL

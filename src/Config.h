@@ -25,6 +25,14 @@
   #error "Missing src/Secrets.h - copy src/Secrets.h.example to src/Secrets.h and set your Wi-Fi credentials"
 #endif
 
+// ================= OTA CONFIGURATION ===================
+// Password for network firmware updates (both ArduinoOTA and the web
+// /update upload form). Override in Secrets.h for a real deployment; falls
+// back to a default here so existing Secrets.h files still build.
+#ifndef OTA_PASSWORD
+  #define OTA_PASSWORD "matrix-ota"
+#endif
+
 // ================= FEATURE FLAGS ======================
 #define ENABLE_MEGAMATRIX false   // Matrix 2 disabled (future)
 #define ENABLE_MEGATREE   false   // Mega tree disabled (future)
