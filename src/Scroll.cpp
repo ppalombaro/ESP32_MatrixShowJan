@@ -122,14 +122,16 @@ bool Scroll::loadFromJSON(const String& jsonPath) {
                 // Parse JSON
                 DynamicJsonDocument doc(1024);
                 DeserializationError error = deserializeJson(doc, content);
-                delete[] content;
-                
+
                 if (error) {
                     Logger::instance().log("[Scroll] JSON parse error: " + String(error.c_str()));
+                    delete[] content;
                     return false;
                 }
-                
+
                 // Extract configuration
+                // NOTE: deserializeJson() is zero-copy by default (doc stores pointers
+                // into `content`), so `content` must stay alive until strings are copied out.
                 if (doc.containsKey("text")) {
                     scrollText = doc["text"].as<String>();
                     scrollText.toUpperCase();  // V16.4.12 - font is uppercase-only (ASCII 32-90)
@@ -137,7 +139,9 @@ bool Scroll::loadFromJSON(const String& jsonPath) {
                 if (doc.containsKey("speed")) {
                     scrollSpeed = doc["speed"];
                 }
-                
+
+                delete[] content;
+
                 Logger::instance().log("[Scroll] Loaded: '" + scrollText + "' @ " + String(scrollSpeed) + "ms");
                 return true;
             }
@@ -157,7 +161,12 @@ bool Scroll::loadFromJSON(const String& jsonPath) {
 
 void Scroll::begin() {
     scrollPos = COLS * 2;  // V16.4.12 - Start off the right edge (two 20-wide windows)
-    currentColorIndex = 0;
+    // V16.4.15 - Color only otherwise advances when a scroll loops mid-display
+    // (see update()), but random mode shows each scroll for one pass then moves
+    // on, so resetting to 0 here meant every scroll always showed color 1 (e.g.
+    // Halloween's orange) and never reached color 2/3. Carry the index forward
+    // across showings instead, so consecutive scrolls alternate theme colors.
+    currentColorIndex = (currentColorIndex + 1) % 3;
     repeatCount = 0;
     lastUpdate = millis();
 }
