@@ -1006,11 +1006,12 @@ void ContentManager::selectRandomContent() {
     }
     if (themePool.empty()) return;
 
-    // Repeat cooldown: an item may not reappear until up to 4 other picks (of any
-    // type) have shown, scaled down for small pools. If that leaves nothing to
-    // choose from, forget the oldest picks until something is available.
+    // Repeat cooldown: an item may not reappear until every other item in the
+    // theme has shown at least once (full-cycle avoidance) - a fixed cap of 4
+    // let items repeat well before a large pool like Halloween had fully
+    // cycled. If that leaves nothing to choose from, forget the oldest picks
+    // until something is available.
     size_t cooldown = themePool.size() > 1 ? themePool.size() - 1 : 0;
-    if (cooldown > 4) cooldown = 4;
     while (recentPicks.size() > cooldown) recentPicks.erase(recentPicks.begin());
     std::vector<ContentItem> freshPool;
     for (;;) {
@@ -1023,18 +1024,11 @@ void ContentManager::selectRandomContent() {
     }
     if (freshPool.empty()) freshPool = themePool;
 
-    // Bucket the theme's eligible content by type, keeping only non-empty buckets.
-    static const ContentType kTypes[] = {
-        CONTENT_SCENE, CONTENT_ANIMATION, CONTENT_SCROLL, CONTENT_COUNTDOWN, CONTENT_PROCEDURAL
-    };
-    std::vector<ContentType> availableTypes;
-    for (ContentType t : kTypes) {
-        for (const auto& item : freshPool) {
-            if (item.type == t) { availableTypes.push_back(t); break; }
-        }
-    }
-    if (availableTypes.empty()) return;
-    ContentType chosenType = availableTypes[random(availableTypes.size())];
+    // Pick uniformly across items, not types - picking a type uniformly first
+    // gave a type's odds equal billing regardless of how many items it has
+    // (e.g. 2 scroll messages vs. 20 scenes both at 1-in-3), which was
+    // surfacing scrolls far more often than their actual share of content.
+    ContentType chosenType = freshPool[random(freshPool.size())].type;
 
     if (chosenType == CONTENT_SCENE) {
         std::vector<ContentItem> scenePool;
