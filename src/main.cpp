@@ -9,6 +9,7 @@
 #include <FastLED.h>
 #include <Preferences.h>
 #include <time.h>
+#include <sys/time.h>
 #include <esp_heap_caps.h>
 #include "Config.h"
 #include "MatrixDisplay.h"
@@ -22,6 +23,16 @@
 // window (17:00-22:00) so it never interrupts an active display.
 #define NIGHTLY_REBOOT_HOUR 3
 #define HEAP_LOG_INTERVAL_MS (10UL * 60UL * 1000UL)  // every 10 minutes
+
+// V16.4.16 - Last-synced wall clock, persisted so a reboot with WiFi still
+// present (crash, OTA, brief power blip) restores an immediately-usable time
+// instead of leaving the schedule gate fail-open ("staying ON") until NTP
+// resyncs. This is NOT a real RTC - the ESP32 has no battery-backed clock,
+// so this drifts by however long the device was actually off, and is wiped
+// entirely by a true power-loss cycle until NTP re-syncs. An external RTC
+// (e.g. DS3231) would be needed to survive power loss with correct time.
+#define TIME_SYNC_KEY "last_epoch"
+#define WIFI_RETRY_INTERVAL_MS (30UL * 1000UL)  // every 30 seconds while down
 
 // POSIX TZ for US Eastern with automatic DST (EDT Mar 2nd Sun - Nov 1st Sun)
 #define TZ_STRING "EST5EDT,M3.2.0/2,M11.1.0/2"
@@ -39,6 +50,66 @@ WebController web;
 // playback reads the same flash chip that Update.h is writing to.
 static bool otaInProgress = false;
 
+// V16.4.16 - Seed the system clock from the last NVS-saved time, before WiFi
+// even attempts to connect, so computeInWindow() has *something* to work
+// with immediately on boot rather than defaulting to "staying ON".
+static void restoreTimeFromNVS() {
+    Preferences p;
+    p.begin(PREFS_NAMESPACE, true);
+    uint64_t saved = p.getULong64(TIME_SYNC_KEY, 0);
+    p.end();
+    if (saved == 0) return;
+
+    struct timeval tv;
+    tv.tv_sec = (time_t)saved;
+    tv.tv_usec = 0;
+    settimeofday(&tv, nullptr);
+    Logger::instance().log("[Time] Restored approximate time from NVS (epoch " +
+                            String((uint32_t)saved) + ") pending NTP sync");
+}
+
+// V16.4.16 - Save the current synced time to NVS periodically so the next
+// boot has a recent fallback. Only writes once SNTP has actually synced.
+static void persistTimeToNVS() {
+    static unsigned long lastSave = 0;
+    unsigned long now = millis();
+    if (lastSave != 0 && now - lastSave < HEAP_LOG_INTERVAL_MS) return;
+
+    struct tm ti;
+    if (!getLocalTime(&ti, 0)) return;  // not synced yet - nothing worth saving
+    lastSave = now;
+
+    Preferences p;
+    p.begin(PREFS_NAMESPACE, false);
+    p.putULong64(TIME_SYNC_KEY, (uint64_t)time(nullptr));
+    p.end();
+}
+
+// V16.4.16 - WiFi.begin() in setup() only ever connects once; nothing
+// previously retried after a drop. That left the control page and the NTP
+// clock permanently dead until the next physical power cycle or the 3am
+// nightly reboot. Poll status and reconnect on a backoff instead.
+static void maintainWiFi() {
+    static bool wasConnected = (WiFi.status() == WL_CONNECTED);
+    static unsigned long lastAttempt = 0;
+
+    bool connected = (WiFi.status() == WL_CONNECTED);
+    if (connected && !wasConnected) {
+        Logger::instance().log("[WiFi] Reconnected: " + WiFi.localIP().toString());
+    } else if (!connected && wasConnected) {
+        Logger::instance().log("[WiFi] Connection lost - will retry every " +
+                                String(WIFI_RETRY_INTERVAL_MS / 1000UL) + "s");
+    }
+    wasConnected = connected;
+
+    if (connected) return;
+
+    unsigned long now = millis();
+    if (lastAttempt != 0 && now - lastAttempt < WIFI_RETRY_INTERVAL_MS) return;
+    lastAttempt = now;
+    WiFi.reconnect();
+}
+
 void setup() {
     Serial.begin(115200);
     delay(1000);
@@ -51,6 +122,8 @@ void setup() {
     // Initialize display hardware
     display.begin();
     Logger::instance().log("[SETUP] Display initialized");
+
+    restoreTimeFromNVS();
 
     // Discover all content from the custom flash blob
     content.begin(&display);
@@ -179,10 +252,12 @@ void loop() {
         delay(1);
         return;  // give the flash write exclusive access to CPU/flash bus
     }
+    maintainWiFi();
     web.handle();
     themeManager.update();
     content.update();
     logHeapStatus();
+    persistTimeToNVS();
     checkNightlyReboot();
     delay(10);
 }
