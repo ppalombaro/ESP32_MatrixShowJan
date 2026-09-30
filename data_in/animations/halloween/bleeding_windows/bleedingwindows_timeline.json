@@ -4,32 +4,32 @@
   "frames": [
     {
       "scene": "bleedwinframe00",
-      "durationMs": 300,
+      "durationMs": 600,
       "note": "Blood level 0"
     },
     {
       "scene": "bleedwinframe01",
-      "durationMs": 400,
+      "durationMs": 800,
       "note": "Blood level 1"
     },
     {
       "scene": "bleedwinframe02",
-      "durationMs": 500,
+      "durationMs": 1000,
       "note": "Blood level 2"
     },
     {
       "scene": "bleedwinframe03",
-      "durationMs": 500,
+      "durationMs": 1000,
       "note": "Blood level 3"
     },
     {
       "scene": "bleedwinframe04",
-      "durationMs": 500,
+      "durationMs": 1000,
       "note": "Blood level 4"
     },
     {
       "scene": "bleedwinframe05",
-      "durationMs": 2000,
+      "durationMs": 4000,
       "note": "Blood level 5"
     }
   ],
