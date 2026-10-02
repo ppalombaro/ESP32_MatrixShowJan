@@ -7,6 +7,7 @@
 #include "ContentManager.h"
 #include "Logger.h"
 #include "Config.h"
+#include <time.h>
 
 // V16.4.13 - zero-padded HH:MM
 static String hhmm(uint8_t h, uint8_t m) {
@@ -64,7 +65,12 @@ String WebPages::buildNavigation() {
     nav += "<a href='/times'>Schedule Times</a>";
     nav += "<a href='/logs'>Logs</a>";
     nav += "<a href='/discovery'>Discovery</a>";
+    // ESP's own clock (with zone abbreviation) so schedule times can be set against it
+    char clk[40] = "time NOT SYNCED";
+    struct tm ti;
+    if (getLocalTime(&ti, 0)) strftime(clk, sizeof(clk), "%a %H:%M:%S %Z", &ti);
     nav += "<span style='color:#666;float:right;'>" FW_VERSION "</span>";
+    nav += "<span style='color:#FFC107;float:right;margin-right:20px;'>ESP: " + String(clk) + "</span>";
     nav += "</div>";
     return nav;
 }

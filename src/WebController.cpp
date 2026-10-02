@@ -12,6 +12,8 @@
 #include "Logger.h"
 #include "Config.h"
 #include <Update.h>
+#include <WiFi.h>
+#include <time.h>
 #include "esp_partition.h"
 
 WebController::WebController() : server(80) {}
@@ -59,6 +61,26 @@ void WebController::setupRoutes() {
         server.send(200, "text/html", WebPages::buildLogsPage());
     });
     
+    // Plain-text clock/uptime readout: shows what time the ESP thinks it is,
+    // since the rotating log can't answer "how long has it been on".
+    server.on("/status", HTTP_GET, [this]() {
+        unsigned long s = millis() / 1000UL;
+        String out = "Uptime: " + String(s / 86400UL) + "d " + String((s / 3600UL) % 24) + "h " +
+                     String((s / 60UL) % 60) + "m\n";
+        struct tm ti;
+        if (getLocalTime(&ti, 0)) {
+            char buf[48];
+            strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S %Z", &ti);
+            out += "Local time: " + String(buf) + "\n";
+        } else {
+            out += "Local time: NOT SYNCED (schedule gate fail-open, show stays ON)\n";
+        }
+        out += "Scheduler: " + String(content->isSchedulerEnabled() ? "enabled" : "disabled") + "\n";
+        out += "In window: " + String(content->isScheduleActive() ? "yes" : "no") + "\n";
+        out += "WiFi: " + String(WiFi.status() == WL_CONNECTED ? "connected" : "DOWN") + "\n";
+        server.send(200, "text/plain", out);
+    });
+
     server.on("/discovery", HTTP_GET, [this]() {
         server.send(200, "text/html", WebPages::buildDiscoveryPage(content));
     });

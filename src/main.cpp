@@ -123,6 +123,13 @@ void setup() {
     display.begin();
     Logger::instance().log("[SETUP] Display initialized");
 
+    // Set the timezone (and start SNTP) BEFORE restoring the NVS time and
+    // before WiFi connects. Otherwise the restored epoch is interpreted as UTC
+    // (4-5h ahead of Eastern) until WiFi is up, or forever if WiFi fails.
+    // SNTP keeps retrying, so it syncs whenever WiFi comes back later.
+    configTzTime(TZ_STRING, "pool.ntp.org", "time.nist.gov");
+    Logger::instance().log("[SETUP] SNTP started (TZ " TZ_STRING ")");
+
     restoreTimeFromNVS();
 
     // Discover all content from the custom flash blob
@@ -145,10 +152,6 @@ void setup() {
 
     if (WiFi.status() == WL_CONNECTED) {
         Logger::instance().log("[SETUP] WiFi connected: " + WiFi.localIP().toString());
-        // Start SNTP + local timezone (DST-aware). getLocalTime() is used elsewhere.
-        configTzTime(TZ_STRING, "pool.ntp.org", "time.nist.gov");
-        Logger::instance().log("[SETUP] SNTP started (TZ " TZ_STRING ")");
-
         // V16.4.14 - mDNS responder so the control page is reachable at
         // http://<HOSTNAME>.local even if the DHCP-assigned IP changes.
         if (MDNS.begin(HOSTNAME)) {
