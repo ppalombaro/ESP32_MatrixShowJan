@@ -1,0 +1,1 @@
+{"displayName":"GB Oven Bake","version":"16.4","theme":"christmas","loop":true,"durationMs":5700,"frames":[{"scene":"gb_oven_bake_00","durationMs":900},{"scene":"gb_oven_bake_01","durationMs":900},{"scene":"gb_oven_bake_02","durationMs":900},{"scene":"gb_oven_bake_03","durationMs":3000}],"metadata":{"frameCount":4,"uniqueScenes":4}}
